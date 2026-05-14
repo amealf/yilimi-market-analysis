@@ -3,7 +3,7 @@ name: Update site
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 1 * * *"
+    - cron: "0 4,16 * * *"
   push:
     branches:
       - main

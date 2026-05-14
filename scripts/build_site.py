@@ -59,11 +59,32 @@ def build_margin_csi500(chart: dict) -> dict:
         "latest_csi": meta["latestCsi"],
         "latest_chinext_date": meta["latestChinextDate"],
         "latest_chinext": meta["latestChinext"],
+        "metrics": [
+            {"label": "融资余额", "value": f"{meta['latestMargin']:.4f} 万亿", "date": meta["latestMarginDate"]},
+            {"label": "中证500", "value": f"{meta['latestCsi']:.2f}", "date": meta["latestCsiDate"]},
+            {"label": "创业板指", "value": f"{meta['latestChinext']:.2f}", "date": meta["latestChinextDate"]},
+        ],
     }
+
+
+def build_usdt_speed_indicator(chart: dict) -> dict:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+    module = importlib.import_module(chart["module"])
+
+    csv_path = site_path(chart["output_csv"])
+    html_path = site_path(chart["output_html"])
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+
+    data = module.build_indicator_frame(cache_path=csv_path)
+    data.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    module.write_interactive_html(data, html_path)
+    return module.chart_meta(data)
 
 
 BUILDERS = {
     "margin_csi500": build_margin_csi500,
+    "usdt_speed_indicator": build_usdt_speed_indicator,
 }
 
 
@@ -78,33 +99,39 @@ def render_page(title: str, body: str) -> str:
     :root {{ color-scheme: light; }}
     body {{
       margin: 0;
-      color: #111827;
-      background: #f5f7fb;
+      color: #142033;
+      background: #eef3f7;
       font-family: "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif;
     }}
     a {{ color: inherit; text-decoration: none; }}
-    .shell {{ max-width: 1180px; margin: 0 auto; padding: 28px 22px 44px; }}
-    .top {{ display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }}
-    h1 {{ margin: 0; font-size: 28px; line-height: 1.2; }}
-    h2 {{ margin: 28px 0 12px; font-size: 20px; }}
-    .muted {{ color: #5b6472; font-size: 14px; }}
-    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 16px; }}
+    .shell {{ max-width: 1380px; margin: 0 auto; padding: 22px 22px 34px; }}
+    .top {{
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: end;
+      gap: 18px;
+      padding: 18px 0 16px;
+    }}
+    h1 {{ margin: 0; font-size: 30px; line-height: 1.16; letter-spacing: 0; }}
+    h2 {{ margin: 24px 0 12px; font-size: 19px; }}
+    .muted {{ color: #5d6a7d; font-size: 14px; line-height: 1.7; }}
+    .grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }}
     .card {{
       background: #fff;
-      border: 1px solid #dbe1ea;
+      border: 1px solid #d7e0e8;
       border-radius: 8px;
-      padding: 16px;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      padding: 14px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
     }}
-    .card h3 {{ margin: 0 0 8px; font-size: 17px; }}
-    .card p {{ margin: 0 0 12px; color: #4b5563; line-height: 1.6; font-size: 14px; }}
+    .card h3 {{ margin: 0 0 6px; font-size: 17px; line-height: 1.35; }}
+    .card p {{ margin: 0 0 10px; color: #4b586a; line-height: 1.6; font-size: 13px; }}
     .chart-preview {{
       position: relative;
       display: block;
-      margin: 12px 0 0;
+      margin: 10px 0 0;
       aspect-ratio: 16 / 9;
       overflow: hidden;
-      border: 1px solid #dbe1ea;
+      border: 1px solid #d7e0e8;
       border-radius: 6px;
       background: #fff;
     }}
@@ -124,8 +151,25 @@ def render_page(title: str, body: str) -> str:
       outline: 2px solid #2563eb;
       outline-offset: -2px;
     }}
-    .actions {{ display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }}
-    .meta {{ margin-top: 12px; color: #475569; font-size: 13px; line-height: 1.7; }}
+    .actions {{ display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }}
+    .meta {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+      color: #475569;
+      font-size: 13px;
+      line-height: 1.45;
+    }}
+    .metric {{
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 8px 9px;
+      background: #f8fafc;
+    }}
+    .metric-label {{ color: #64748b; font-size: 12px; }}
+    .metric-value {{ margin-top: 3px; font-weight: 700; color: #172033; }}
+    .metric-date {{ margin-top: 2px; color: #718096; font-size: 11px; }}
     .button {{
       display: inline-flex;
       align-items: center;
@@ -137,6 +181,10 @@ def render_page(title: str, body: str) -> str:
     }}
     .button:hover {{ background: #eef2f7; }}
     footer {{ margin-top: 32px; color: #64748b; font-size: 12px; }}
+    @media (max-width: 960px) {{
+      .top {{ grid-template-columns: 1fr; }}
+      .grid {{ grid-template-columns: 1fr; }}
+    }}
   </style>
 </head>
 <body>
@@ -154,6 +202,20 @@ def chart_card(chart: dict, category: dict, generated: dict, prefix: str = "") -
     chart_url = prefix + chart["output_html"].replace("\\", "/")
     csv_url = prefix + chart["output_csv"].replace("\\", "/")
     chart_title = html.escape(chart["title"])
+    metric_rows = []
+    for metric in info.get("metrics", []):
+        date_text = metric.get("date")
+        date_html = f'<div class="metric-date">{html.escape(str(date_text))}</div>' if date_text else ""
+        metric_rows.append(
+            f"""
+    <div class="metric">
+      <div class="metric-label">{html.escape(str(metric.get("label", "")))}</div>
+      <div class="metric-value">{html.escape(str(metric.get("value", "")))}</div>
+      {date_html}
+    </div>
+"""
+        )
+    metrics_html = "".join(metric_rows)
     return f"""
 <article class="card">
   <h3>{chart_title}</h3>
@@ -166,12 +228,7 @@ def chart_card(chart: dict, category: dict, generated: dict, prefix: str = "") -
     <a class="button" href="{html.escape(chart_url)}">打开图表</a>
     <a class="button" href="{html.escape(csv_url)}" download>下载 CSV</a>
   </div>
-  <div class="meta">
-    栏目：{html.escape(category["title"])}<br>
-    融资余额：{html.escape(str(info.get("latest_margin_date", "-")))}，{info.get("latest_margin", "-")} 万亿元<br>
-    中证500：{html.escape(str(info.get("latest_csi_date", "-")))}，{info.get("latest_csi", "-")}<br>
-    创业板指：{html.escape(str(info.get("latest_chinext_date", "-")))}，{info.get("latest_chinext", "-")}
-  </div>
+  <div class="meta">{metrics_html}</div>
 </article>
 """
 
@@ -180,7 +237,7 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
     categories = {item["id"]: item for item in config["categories"]}
     charts = [chart for chart in config["charts"] if chart["id"] in selected_ids]
     now = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
-    sections = []
+    home_cards = []
     for category in config["categories"]:
         category_charts = [chart for chart in charts if chart["category"] == category["id"]]
         if not category_charts:
@@ -206,15 +263,7 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
             render_page(category["title"], category_body),
             encoding="utf-8",
         )
-        sections.append(
-            f"""
-<section>
-  <h2>{html.escape(category["title"])}</h2>
-  <p class="muted">{html.escape(category["description"])}</p>
-  <div class="grid">{index_cards}</div>
-</section>
-"""
-        )
+        home_cards.append(index_cards)
 
     body = f"""
 <div class="top">
@@ -222,10 +271,13 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
     <h1>{html.escape(config["site"]["title"])}</h1>
     <div class="muted">{html.escape(config["site"]["description"])}</div>
   </div>
-  <div class="muted">北京时间 {now}</div>
+  <div class="muted">更新时间：北京时间 {now}</div>
 </div>
-{''.join(sections)}
-<footer>数据源：东方财富、新浪财经。页面由 GitHub Actions 自动生成。</footer>
+<section>
+  <h2>市场监控</h2>
+  <div class="grid">{''.join(home_cards)}</div>
+</section>
+<footer>数据源：东方财富、新浪财经、CryptoCompare、DefiLlama。页面由 GitHub Actions 自动生成。</footer>
 """
     (SITE_DIR / "index.html").write_text(
         render_page(config["site"]["title"], body),

@@ -1,11 +1,14 @@
 site:
-  title: A股市场图表
-  description: 每天自动更新的市场图表站点。
+  title: Yilimi Market Analysis
+  description: 每天更新的市场监控面板，跟踪 A 股融资余额和 BTC/USDT 流动性速度。
 
 categories:
   - id: a-share-margin
     title: A股融资融券
     description: 跟踪 A 股融资余额，并与中证500、创业板指走势对照。
+  - id: crypto-liquidity
+    title: 加密市场流动性
+    description: 跟踪 BTC 价格与 USDT 净增速度多空指标。
 
 charts:
   - id: margin-csi500
@@ -16,3 +19,11 @@ charts:
     module: plot_margin_csi500
     output_html: charts/a-share-margin/margin-csi500.html
     output_csv: data/a-share-margin/margin-csi500.csv
+  - id: usdt-speed-indicator
+    category: crypto-liquidity
+    title: BTC 与 USDT 速度多空指标
+    description: 使用 BTC 价格、USDT 市值和 30/180/270/360/1080 日速度，生成辅助判断多空的流动性分数。
+    builder: usdt_speed_indicator
+    module: plot_usdt_speed_indicator
+    output_html: charts/crypto-liquidity/usdt-speed-indicator.html
+    output_csv: data/crypto-liquidity/usdt-speed-indicator.csv
