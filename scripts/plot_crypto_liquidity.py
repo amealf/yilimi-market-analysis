@@ -317,9 +317,10 @@ const ratioBase={btc:rows.find(r=>r.btc!=null)?.btc,eth:rows.find(r=>r.eth!=null
 function usd(v,d=0){return v==null?"-":"$"+Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})}
 function b(v){return v==null?"-":Number(v).toFixed(2)+"B"}
 function signedB(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"")+n.toFixed(2)+"B"}
+function pct(v,d=1){return v==null?"-":Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})+"%"}
 function ratioValue(item,r){const base=ratioBase[item.key];return base&&r[item.key]!=null?r[item.key]/base*100:null}
 function plotValue(item,r){return item.scale==="ratio"?ratioValue(item,r):r[item.key]}
-function valueText(item,r){if(item.scale==="ratio"){const v=ratioValue(item,r);return v==null?"-":v.toFixed(1)+" ("+usd(r[item.key])+")"}return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
+function valueText(item,r){if(item.scale==="ratio"){const v=ratioValue(item,r);return v==null?"-":pct(v)+" ("+usd(r[item.key])+")"}return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
 function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.map(r=>plotValue(item,r)).filter(v=>v!=null&&Number.isFinite(v))});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
 function currentRange(){return zoom||[rows[0].t,displayEnd]}
@@ -350,9 +351,9 @@ function drawLegend(x,y){
   });
 }
 function drawAxes(){
-  [10,100,1000,10000,100000].forEach(v=>{if(Math.log(v)<box.ratioMin||Math.log(v)>box.ratioMax)return;const y=yRatio(v);gridLine(y);ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(v.toLocaleString("en-US"),box.x0-9,y+4)});
+  [10,100,1000,10000,100000].forEach(v=>{if(Math.log(v)<box.ratioMin||Math.log(v)>box.ratioMax)return;const y=yRatio(v);gridLine(y);ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(pct(v,0),box.x0-9,y+4)});
   [0,50,100,150,200,250].forEach(v=>{if(v>box.supplyMax)return;const y=ySupply(v);ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
-  [-2,-1,0,1,2].map(n=>n*box.devTick).forEach(v=>{if(v<box.devMin||v>box.devMax)return;const y=yDev(v);if(v===0){ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.45)";ctx.beginPath();ctx.moveTo(box.x0,y);ctx.lineTo(box.x1,y);ctx.stroke();ctx.setLineDash([])}ctx.fillStyle="#6f4aa8";ctx.textAlign="left";ctx.fillText((v>0?"+":"")+v.toFixed(1)+"B",box.x1+42,y+4)});
+  [-2,-1,0,1,2].map(n=>n*box.devTick).forEach(v=>{if(v<box.devMin||v>box.devMax)return;const y=yDev(v);if(v===0){ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.45)";ctx.beginPath();ctx.moveTo(box.x0,y);ctx.lineTo(box.x1,y);ctx.stroke();ctx.setLineDash([])}ctx.fillStyle="#6f4aa8";ctx.textAlign="left";ctx.fillText((v>0?"+":"")+v.toFixed(1)+"B",box.x1+74,y+4)});
 }
 function drawPath(item){
   if(hidden[item.key])return;
@@ -368,7 +369,7 @@ function drawPath(item){
 }
 function draw(active){
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035);
-  const axisLeft=66,axisRight=100,titleY=outer+18,legendY=outer+56,xLabelGap=37;
+  const axisLeft=66,axisRight=170,titleY=outer+18,legendY=outer+56,xLabelGap=37;
   const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+82,y1=h-outer-xLabelGap;
   const [t0,t1]=currentRange(),sample=visibleRows();
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample);
@@ -384,9 +385,9 @@ function draw(active){
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);ctx.restore();
-  ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(24,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("BTC / ETH（起点=100）",0,0);ctx.restore();
-  ctx.save();ctx.translate(w-64,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText("USDT / USDC 发行量",0,0);ctx.restore();
-  ctx.save();ctx.translate(w-18,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle="#6f4aa8";ctx.fillText("USDT净增偏离均值",0,0);ctx.restore();
+  ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(24,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("BTC / ETH（起点=100%）",0,0);ctx.restore();
+  ctx.save();ctx.translate(x1+66,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText("USDT / USDC 发行量",0,0);ctx.restore();
+  ctx.save();ctx.translate(x1+118,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle="#6f4aa8";ctx.fillText("USDT净增偏离均值",0,0);ctx.restore();
   if(active!=null){const r=rows[active],x=xScale(r.t);ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.62)";ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);series.forEach(item=>{const v=plotValue(item,r);if(hidden[item.key]||v==null)return;ctx.fillStyle="#fff";ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,yFor(item,v),3.3,0,Math.PI*2);ctx.fill();ctx.stroke()})}
 }
 function clampX(x){return Math.max(box.x0,Math.min(box.x1,x))}
