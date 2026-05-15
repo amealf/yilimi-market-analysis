@@ -1,6 +1,6 @@
 site:
   title: Yilimi Market Analysis
-  description: 每天更新的市场监控面板，跟踪 A 股融资余额和 BTC/USDT 流动性速度。
+  description: 每天更新的市场监控面板，跟踪 A 股融资余额、BTC/ETH 价格和稳定币发行量。
 
 categories:
   - id: a-share-margin
@@ -21,9 +21,9 @@ charts:
     output_csv: data/a-share-margin/margin-csi500.csv
   - id: usdt-speed-indicator
     category: crypto-liquidity
-    title: BTC 与 USDT 速度多空指标
-    description: 使用 BTC 价格、USDT 市值和 30/180/270/360/1080 日速度，生成辅助判断多空的流动性分数。
+    title: BTC/ETH 与 USDT/USDC 发行量
+    description: 主图显示 BTC、ETH、USDT发行量、USDC发行量；副图显示 USDT 发行量 5日、30日、60日均线。BTC/ETH 可回到 2015，USDT/USDC 使用 DefiLlama 可用日频数据。
     builder: usdt_speed_indicator
-    module: plot_usdt_speed_indicator
+    module: plot_crypto_liquidity
     output_html: charts/crypto-liquidity/usdt-speed-indicator.html
     output_csv: data/crypto-liquidity/usdt-speed-indicator.csv
