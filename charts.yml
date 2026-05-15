@@ -22,7 +22,7 @@ charts:
   - id: usdt-speed-indicator
     category: crypto-liquidity
     title: BTC/ETH 与 USDT/USDC 发行量
-    description: 主图显示 BTC、ETH、USDT发行量、USDC发行量，并用半透明线叠加 USDT 10日、30日、50日、120日、200日净增相对历史平均值的偏离。
+    description: 主图显示 BTC、ETH、USDT发行量、USDC发行量、USDT+USDC发行量，并保留默认隐藏的 USDT 300日净增全均线。
     builder: usdt_speed_indicator
     module: plot_crypto_liquidity
     output_html: charts/crypto-liquidity/usdt-speed-indicator.html
