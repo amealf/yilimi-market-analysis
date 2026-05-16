@@ -106,6 +106,10 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
             cached = pd.read_csv(cache_path, parse_dates=["date"])
             if "stable_b" not in cached.columns:
                 cached["stable_b"] = cached[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
+            for window in [5, 30]:
+                column = f"usdt_ma_{window}d_b"
+                if column not in cached.columns:
+                    cached[column] = cached["usdt_b"].rolling(window, min_periods=1).mean()
             if "usdt_delta_dev_300d_b" not in cached.columns:
                 daily_delta_mean_b = cached["usdt_b"].diff().mean()
                 cached["usdt_delta_300d_b"] = cached["usdt_b"] - cached["usdt_b"].shift(300)
@@ -122,6 +126,8 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
     data["usdt_b"] = data["USDT"] / 1e9
     data["usdc_b"] = data["USDC"] / 1e9
     data["stable_b"] = data[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
+    for window in [5, 30]:
+        data[f"usdt_ma_{window}d_b"] = data["usdt_b"].rolling(window, min_periods=1).mean()
     daily_delta_mean_b = data["usdt_b"].diff().mean()
     for window in [300]:
         data[f"usdt_delta_{window}d_b"] = data["usdt_b"] - data["usdt_b"].shift(window)
@@ -284,6 +290,8 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
                 "usdt": series_value(row.usdt_b, 4),
                 "usdc": series_value(row.usdc_b, 4),
                 "stable": series_value(row.stable_b, 4),
+                "ma5": series_value(row.usdt_ma_5d_b, 4),
+                "ma30": series_value(row.usdt_ma_30d_b, 4),
                 "dev300": series_value(row.usdt_delta_dev_300d_b, 4),
             }
         )
@@ -316,18 +324,19 @@ const rows=P.rows.map(r=>({...r,t:new Date(r.date).getTime()}));
 const canvas=document.getElementById("chart");
 const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
-const colors={btc:"#4472C4",eth:"#A5A5A5",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",dev300:"rgba(214,39,40,.30)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"#A5A5A5",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",ma5:"rgba(237,125,49,.45)",ma30:"rgba(237,125,49,.70)",dev300:"rgba(214,39,40,.30)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const series=[
   {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15},
   {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05},
   {key:"usdt",label:"USDT发行量",color:colors.usdt,scale:"supply",width:1.15},
   {key:"usdc",label:"USDC发行量",color:colors.usdc,scale:"supply",width:1.15},
   {key:"stable",label:"USDT+USDC",color:colors.stable,scale:"supply",width:1.1},
-  {key:"dev300",label:"300D全均",color:colors.dev300,scale:"dev",width:.85}
+  {key:"ma5",label:"USDT 5D均线",color:colors.ma5,scale:"supply",width:.95},
+  {key:"ma30",label:"USDT 30D均线",color:colors.ma30,scale:"supply",width:1.05},
+  {key:"dev300",label:"300D全均",color:colors.dev300,scale:"supply",width:.85}
 ];
-let box={},zoom=null,drag=null,legendBoxes=[],hidden={usdc:true,stable:true,dev300:true};
+let box={},zoom=null,drag=null,legendBoxes=[],hidden={usdc:true,stable:true,ma5:true,ma30:true,dev300:true};
 const DAY=86400000,displayEnd=rows[rows.length-1].t+DAY*30;
-const devScaleKeys=["dev300"];
 const ratioBase={btc:rows.find(r=>r.btc!=null)?.btc,eth:rows.find(r=>r.eth!=null)?.eth};
 function usd(v,d=0){return v==null?"-":"$"+Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})}
 function b(v){return v==null?"-":Number(v).toFixed(2)+"B"}
@@ -345,8 +354,7 @@ function resize(){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelR
 function xScale(t){return box.x0+(t-box.t0)/(box.t1-box.t0)*(box.x1-box.x0)}
 function yRatio(v){return box.y1-(Math.log(v)-box.ratioMin)/(box.ratioMax-box.ratioMin)*(box.y1-box.y0)}
 function ySupply(v){return box.y1-(v-box.supplyMin)/(box.supplyMax-box.supplyMin)*(box.y1-box.y0)}
-function yDev(v){return box.y1-(v-box.devMin)/(box.devMax-box.devMin)*(box.y1-box.y0)}
-function yFor(item,v){return item.scale==="ratio"?yRatio(v):item.scale==="supply"?ySupply(v):yDev(v)}
+function yFor(item,v){return item.scale==="ratio"?yRatio(v):ySupply(v)}
 function gridLine(y){ctx.strokeStyle=colors.grid;ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(box.x0,y);ctx.lineTo(box.x1,y);ctx.stroke()}
 function drawLegend(x,y){
   legendBoxes=[];
@@ -368,8 +376,7 @@ function drawLegend(x,y){
 }
 function drawAxes(){
   [10,100,1000,10000,100000].forEach(v=>{if(Math.log(v)<box.ratioMin||Math.log(v)>box.ratioMax)return;const y=yRatio(v);gridLine(y);ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(multiple(v),box.x0-9,y+4)});
-  [0,50,100,150,200,250,300].forEach(v=>{if(v>box.supplyMax)return;const y=ySupply(v);ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
-  [-2,-1,0,1,2].map(n=>n*box.devTick).forEach(v=>{if(v<box.devMin||v>box.devMax)return;const y=yDev(v);if(v===0){ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.45)";ctx.beginPath();ctx.moveTo(box.x0,y);ctx.lineTo(box.x1,y);ctx.stroke();ctx.setLineDash([])}ctx.fillStyle="#6f4aa8";ctx.textAlign="left";ctx.fillText((v>0?"+":"")+v.toFixed(1)+"B",box.x1+62,y+4)});
+  [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
 }
 function drawPath(item){
   if(hidden[item.key])return;
@@ -385,14 +392,12 @@ function drawPath(item){
 }
 function draw(active){
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035);
-  const axisLeft=44,axisRight=108,titleY=outer+18,legendY=outer+56,xLabelGap=37;
+  const axisLeft=76,axisRight=76,titleY=outer+18,legendY=outer+56,xLabelGap=37;
   const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+82,y1=h-outer-xLabelGap;
   const [t0,t1]=currentRange(),sample=visibleRows();
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample);
-  const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable"]),sample);
-  const [devMin0,devMax0]=extent(devScaleKeys,rows);
-  const devAbs=Math.max(Math.abs(devMin0),Math.abs(devMax0),.5),devTick=Math.ceil(devAbs/2*10)/10;
-  box={x0,x1,y0,y1,t0,t1,ratioMin:Math.log(Math.max(ratioMin0*.75,.01)),ratioMax:Math.log(ratioMax0*1.18),supplyMin:0,supplyMax:Math.max(supplyMax0*1.1,1),devMin:-devTick*2,devMax:devTick*2,devTick};
+  const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable","ma5","ma30","dev300"]),sample);
+  box={x0,x1,y0,y1,t0,t1,ratioMin:Math.log(Math.max(ratioMin0*.75,.01)),ratioMax:Math.log(ratioMax0*1.18),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1)};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   ctx.fillStyle=colors.text;ctx.font="700 21px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText("USDT发行量 与 BTC/ETH",w/2,titleY);
   drawLegend(x0,legendY);
@@ -403,7 +408,6 @@ function draw(active){
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);ctx.restore();
   ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(20,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("BTC / ETH（起点=1）",0,0);ctx.restore();
   ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText("USDT / USDC / 合计发行量",0,0);ctx.restore();
-  ctx.save();ctx.translate(x1+98,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle="#6f4aa8";ctx.fillText("USDT净增-全样本均值",0,0);ctx.restore();
   if(active!=null){const r=rows[active],x=xScale(r.t);ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.62)";ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);series.forEach(item=>{const v=plotValue(item,r);if(hidden[item.key]||v==null)return;ctx.fillStyle="#fff";ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,yFor(item,v),3.3,0,Math.PI*2);ctx.fill();ctx.stroke()})}
 }
 function clampX(x){return Math.max(box.x0,Math.min(box.x1,x))}
