@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -279,6 +280,7 @@ resize();
 
 def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     meta = chart_meta(data)
+    generated_at = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
     data = data.copy()
     data["btc_daily_pct"] = data["BTC"].pct_change() * 100
     data["eth_daily_pct"] = data["ETH"].pct_change() * 100
@@ -301,7 +303,16 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
             }
         )
 
-    payload = json.dumps({"rows": records, "meta": meta}, ensure_ascii=False, separators=(",", ":"))
+    payload = json.dumps(
+        {
+            "rows": records,
+            "meta": meta,
+            "generatedAt": generated_at,
+            "dataSources": "CryptoCompare、DefiLlama",
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
     html_text = """
 <!doctype html>
 <html lang="zh-CN">
@@ -329,6 +340,7 @@ const rows=P.rows.map(r=>({...r,t:new Date(r.date).getTime()}));
 const canvas=document.getElementById("chart");
 const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
+const isEmbed=document.documentElement.classList.contains("is-embed");
 const colors={btc:"#1f77b4",eth:"#A5A5A5",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",ma5:"#2ca02c",ma30:"#d62728",dev300:"#111827",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const series=[
   {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15},
@@ -398,7 +410,7 @@ function drawPath(item){
 }
 function draw(active){
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035);
-  const axisLeft=76,axisRight=76,titleY=outer+18,legendY=outer+56,xLabelGap=37;
+  const axisLeft=76,axisRight=76,titleY=outer+18,legendY=outer+56,xLabelGap=isEmbed?37:54;
   const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+82,y1=h-outer-xLabelGap;
   const [t0,t1]=currentRange(),sample=visibleRows();
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample);
@@ -409,6 +421,7 @@ function draw(active){
   drawLegend(x0,legendY);
   const startY=new Date(box.t0).getUTCFullYear(),endY=new Date(box.t1).getUTCFullYear();
   for(let year=startY;year<=endY;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.strokeStyle="#edf2f7";ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+25)}
+  if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：北京时间 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);ctx.restore();

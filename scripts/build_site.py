@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "scripts"
 SITE_DIR = ROOT / "site"
 CONFIG_PATH = ROOT / "charts.yml"
+DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama"
 
 
 def load_config() -> dict:
@@ -279,7 +280,7 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
   <a class="button" href="../index.html">返回首页</a>
 </div>
 <div class="grid">{category_cards}</div>
-<footer>更新时间：{now}（北京时间）</footer>
+<footer>刷新时间：北京时间 {now}　数据来源：{html.escape(DATA_SOURCES)}。页面由 GitHub Actions 自动生成。</footer>
 """
         (category_dir / "index.html").write_text(
             render_page(category["title"], category_body),
@@ -298,7 +299,7 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
   <h2>市场监控</h2>
   <div class="grid">{''.join(home_cards)}</div>
 </section>
-<footer>数据源：东方财富、新浪财经、CryptoCompare、DefiLlama。更新时间：北京时间 {now}。页面由 GitHub Actions 自动生成。</footer>
+<footer>刷新时间：北京时间 {now}　数据来源：{html.escape(DATA_SOURCES)}。页面由 GitHub Actions 自动生成。</footer>
 """
     (SITE_DIR / "index.html").write_text(
         render_page(config["site"]["title"], body),

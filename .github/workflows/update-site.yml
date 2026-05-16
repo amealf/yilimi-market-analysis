@@ -3,7 +3,8 @@ name: Update site
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 1 * * *"
+    # Beijing time: 00:17, 05:17, 10:17, 15:17, 20:17.
+    - cron: "17 2,7,12,16,21 * * *"
   push:
     branches:
       - main
