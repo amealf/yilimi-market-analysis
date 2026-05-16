@@ -114,6 +114,23 @@ def render_page(title: str, body: str) -> str:
       padding: 18px 0 16px;
     }}
     h1 {{ margin: 0; font-size: 30px; line-height: 1.16; letter-spacing: 0; }}
+    .home-top {{
+      display: block;
+      text-align: center;
+      padding: 34px 0 30px;
+    }}
+    .home-top h1 {{
+      font-size: 46px;
+      line-height: 1.08;
+      font-weight: 800;
+      color: #0f172a;
+    }}
+    .home-top .muted {{
+      max-width: 760px;
+      margin: 12px auto 0;
+      font-size: 15px;
+      color: #526071;
+    }}
     h2 {{ margin: 24px 0 12px; font-size: 19px; }}
     .muted {{ color: #5d6a7d; font-size: 14px; line-height: 1.7; }}
     .grid {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }}
@@ -185,6 +202,8 @@ def render_page(title: str, body: str) -> str:
     @media (max-width: 960px) {{
       .top {{ grid-template-columns: 1fr; }}
       .grid {{ grid-template-columns: 1fr; }}
+      .home-top {{ padding: 24px 0 24px; }}
+      .home-top h1 {{ font-size: 34px; }}
     }}
   </style>
 </head>
@@ -270,7 +289,7 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
         home_cards.append(index_cards)
 
     body = f"""
-<div class="top">
+<div class="top home-top">
   <div>
     <h1>{html.escape(config["site"]["title"])}</h1>
     <div class="muted">{html.escape(config["site"]["description"])}</div>
