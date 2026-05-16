@@ -13,16 +13,16 @@ categories:
 charts:
   - id: margin-csi500
     category: a-share-margin
-    title: A股融资余额与中证500、创业板指走势叠加
-    description: 融资余额使用东方财富融资融券数据；中证500和创业板指优先使用东方财富行情，失败时使用新浪日 K 备用源。
+    title: A股融资余额 与 中证500、创业板指
+    description: ""
     builder: margin_csi500
     module: plot_margin_csi500
     output_html: charts/a-share-margin/margin-csi500.html
     output_csv: data/a-share-margin/margin-csi500.csv
   - id: usdt-speed-indicator
     category: crypto-liquidity
-    title: BTC/ETH 与 USDT/USDC 发行量
-    description: 主图显示 BTC、ETH、USDT发行量、USDC发行量、USDT+USDC发行量，并保留默认隐藏的 USDT 300日净增全均线。
+    title: USDT发行量 与 BTC/ETH
+    description: ""
     builder: usdt_speed_indicator
     module: plot_crypto_liquidity
     output_html: charts/crypto-liquidity/usdt-speed-indicator.html

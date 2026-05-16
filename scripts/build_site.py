@@ -204,6 +204,8 @@ def chart_card(chart: dict, category: dict, generated: dict, prefix: str = "") -
     preview_url = chart_url + ("&" if "?" in chart_url else "?") + "notes=0&embed=1"
     csv_url = prefix + chart["output_csv"].replace("\\", "/")
     chart_title = html.escape(chart["title"])
+    description = str(chart.get("description") or "").strip()
+    description_html = f"\n  <p>{html.escape(description)}</p>" if description else ""
     metric_rows = []
     for metric in info.get("metrics", []):
         date_text = metric.get("date")
@@ -221,7 +223,7 @@ def chart_card(chart: dict, category: dict, generated: dict, prefix: str = "") -
     return f"""
 <article class="card">
   <h3>{chart_title}</h3>
-  <p>{html.escape(chart["description"])}</p>
+  {description_html}
   <div class="chart-preview">
     <iframe src="{html.escape(preview_url)}" title="{chart_title}小图" loading="lazy"></iframe>
     <a class="preview-hit" href="{html.escape(chart_url)}" aria-label="打开{chart_title}"></a>
@@ -273,13 +275,12 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
     <h1>{html.escape(config["site"]["title"])}</h1>
     <div class="muted">{html.escape(config["site"]["description"])}</div>
   </div>
-  <div class="muted">更新时间：北京时间 {now}</div>
 </div>
 <section>
   <h2>市场监控</h2>
   <div class="grid">{''.join(home_cards)}</div>
 </section>
-<footer>数据源：东方财富、新浪财经、CryptoCompare、DefiLlama。页面由 GitHub Actions 自动生成。</footer>
+<footer>数据源：东方财富、新浪财经、CryptoCompare、DefiLlama。更新时间：北京时间 {now}。页面由 GitHub Actions 自动生成。</footer>
 """
     (SITE_DIR / "index.html").write_text(
         render_page(config["site"]["title"], body),
