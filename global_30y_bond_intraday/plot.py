@@ -13,12 +13,18 @@ from plotly.offline import get_plotlyjs
 from .transform import opening_markers
 
 
-COLORS = {
-    "US": "#1f77b4",
-    "Japan": "#d62728",
-    "Korea": "#2ca02c",
-    "UK": "#9467bd",
-}
+PYTHON_DEFAULT_COLORS = [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
+]
 
 
 def write_plot(
@@ -32,28 +38,29 @@ def write_plot(
     day_start = pd.Timestamp(datetime.combine(target_date, time.min, tzinfo=timezone.utc))
     day_end = day_start + pd.Timedelta(days=1) - pd.Timedelta(minutes=1)
 
-    for market in markets:
+    for index, market in enumerate(markets):
         frame = data[data["region"] == market["region"]].copy()
         frame = trim_for_plot(frame)
         if frame.empty:
             frame = placeholder_frame(day_start, market)
+        frame["move_bp_plot"] = pd.to_numeric(frame["move_bp"], errors="coerce").round(3)
         frame["utc_text"] = frame["timestamp_utc"].dt.strftime("%Y-%m-%d %H:%M UTC")
         frame["local_text"] = frame["timestamp_local"].map(format_timestamp)
         customdata = frame[["label", "yield_pct", "utc_text", "local_text", "source"]].to_numpy()
         fig.add_trace(
             go.Scatter(
                 x=frame["timestamp_utc"],
-                y=frame["move_bp"],
+                y=frame["move_bp_plot"],
                 mode="lines",
                 name=f"{market['label']} / {market['source_name']}",
                 showlegend=True,
-                line={"width": 2, "color": COLORS.get(market["region"], "#334155")},
+                line={"width": 1.25, "color": PYTHON_DEFAULT_COLORS[index % len(PYTHON_DEFAULT_COLORS)]},
                 connectgaps=False,
                 customdata=customdata,
                 hovertemplate=(
                     "<b>%{customdata[0]}</b><br>"
                     "Yield: %{customdata[1]:.3f}%<br>"
-                    "Move: %{y:+.2f} bp<br>"
+                    "Move: %{y:+.1f} bp<br>"
                     "UTC: %{customdata[2]}<br>"
                     "Local: %{customdata[3]}<br>"
                     "Source: %{customdata[4]}"
@@ -118,14 +125,14 @@ def write_plot(
 
 
 def add_latest_annotation(fig: go.Figure, frame: pd.DataFrame, market: dict) -> None:
-    valid = frame.dropna(subset=["yield_pct", "move_bp"])
+    valid = frame.dropna(subset=["yield_pct", "move_bp_plot"])
     if valid.empty:
         return
     latest = valid.iloc[-1]
     fig.add_annotation(
         x=latest["timestamp_utc"],
-        y=latest["move_bp"],
-        text=f"{html.escape(market['label'])}<br>{float(latest['yield_pct']):.3f}% / {float(latest['move_bp']):+.1f} bp",
+        y=latest["move_bp_plot"],
+        text=f"{html.escape(market['label'])}<br>{float(latest['yield_pct']):.3f}% / {float(latest['move_bp_plot']):+.1f} bp",
         showarrow=False,
         xanchor="left",
         yanchor="middle",
@@ -195,6 +202,7 @@ def write_html(fig: go.Figure, output_html: str | Path, target_date, available_d
     .date-nav{{position:absolute;right:14px;top:14px;z-index:5;display:flex;align-items:center;gap:8px;color:#526071;background:rgba(255,255,255,.76);border:1px solid rgba(120,129,145,.34);border-radius:6px;padding:6px 8px;box-shadow:0 6px 18px rgba(15,23,42,.08)}}
     .date-nav label{{font-size:12px}}
     .date-nav select{{border:1px solid #cbd5e1;border-radius:5px;background:#fff;color:#172033;font-size:13px;padding:3px 6px}}
+    .date-nav option[disabled]{{color:#94a3b8;background:#f1f5f9}}
     .is-embed .date-nav{{display:none}}
     .js-plotly-plot,.plot-container,.svg-container{{width:100%!important;height:100%!important}}
   </style>
@@ -231,17 +239,36 @@ def find_site_root(path: Path) -> Path:
 
 
 def render_date_nav(target_date, available_dates: list) -> str:
-    date_values = sorted({str(item) for item in available_dates} | {str(target_date)}, reverse=True)
-    if len(date_values) <= 1:
+    date_items = normalize_date_nav_items(target_date, available_dates)
+    if len(date_items) <= 1:
         return ""
     options = []
-    for value in date_values:
+    for item in date_items:
+        value = item["date"]
         selected = " selected" if value == str(target_date) else ""
-        options.append(f'<option value="global-30y-bond-intraday-{html.escape(value)}.html"{selected}>{html.escape(value)}</option>')
+        disabled = " disabled" if not item["has_data"] else ""
+        label = value if item["has_data"] else f"{value} (No data)"
+        options.append(f'<option value="global-30y-bond-intraday-{html.escape(value)}.html"{selected}{disabled}>{html.escape(label)}</option>')
     return f"""<div class="date-nav">
       <label for="history-date">Date</label>
       <select id="history-date" onchange="location.href=this.value">
         {''.join(options)}
       </select>
     </div>
-    <script>window.GLOBAL_30Y_AVAILABLE_DATES={json.dumps(date_values)};</script>"""
+    <script>window.GLOBAL_30Y_AVAILABLE_DATES={json.dumps(date_items)};</script>"""
+
+
+def normalize_date_nav_items(target_date, available_dates: list) -> list[dict[str, object]]:
+    items: dict[str, dict[str, object]] = {}
+    for item in available_dates:
+        if isinstance(item, dict):
+            value = str(item.get("date"))
+            has_data = bool(item.get("has_data", True))
+        else:
+            value = str(item)
+            has_data = True
+        if value and value != "None":
+            items[value] = {"date": value, "has_data": has_data}
+    target_value = str(target_date)
+    items.setdefault(target_value, {"date": target_value, "has_data": True})
+    return sorted(items.values(), key=lambda item: str(item["date"]), reverse=True)

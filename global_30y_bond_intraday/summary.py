@@ -45,7 +45,7 @@ def build_summary(data: pd.DataFrame, markets: list[dict]) -> pd.DataFrame:
                 "open_timestamp_utc": format_timestamp(latest["open_timestamp_utc"]),
                 "open_observed_utc": format_timestamp(latest["open_observed_utc"]),
                 "open_yield_pct": round(float(latest["open_yield_pct"]), 6),
-                "move_bp": round(float(latest["move_bp"]), 6),
+                "move_bp": round(float(latest["move_bp"]), 1),
                 "valid_minutes": raw_count,
                 "forward_filled_minutes": filled_count,
             }

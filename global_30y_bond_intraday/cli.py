@@ -34,7 +34,7 @@ def build(
     strict: bool = False,
     refresh_cache: bool = False,
     allow_fetch: bool = True,
-    available_dates: list[date] | None = None,
+    available_dates: list | None = None,
 ) -> dict:
     config = load_config(config_path)
     selected_date = parse_target_date(target_date or config.get("date"))
@@ -95,6 +95,7 @@ def build_history(
 
     cached_dates = list_cached_dates(config, markets)
     available_dates = sorted(set(cached_dates) | {selected_date})
+    date_nav_items = build_date_nav_items(config, markets, available_dates)
     current_meta = build(
         config_path=config_path,
         target_date=str(selected_date),
@@ -102,7 +103,7 @@ def build_history(
         summary_csv=csv_path,
         strict=strict,
         allow_fetch=False,
-        available_dates=available_dates,
+        available_dates=date_nav_items,
     )
 
     for cached_date in available_dates:
@@ -115,13 +116,13 @@ def build_history(
             summary_csv=dated_summary,
             strict=strict,
             allow_fetch=False,
-            available_dates=available_dates,
+            available_dates=date_nav_items,
         )
 
     history_csv = resolve_config_path(config, config["output"].get("history_csv", "../site/data/global-rates/global-30y-bond-intraday-history.csv"))
-    write_history_manifest(history_csv, available_dates)
+    write_history_manifest(history_csv, date_nav_items)
     current_meta["history_csv"] = str(history_csv)
-    current_meta["available_dates"] = [item.isoformat() for item in available_dates]
+    current_meta["available_dates"] = date_nav_items
     return current_meta
 
 
@@ -221,9 +222,30 @@ def dated_output_path(html_path: Path, target_date: date) -> Path:
     return html_path.with_name(f"{html_path.stem}-{target_date.isoformat()}{html_path.suffix}")
 
 
-def write_history_manifest(path: Path, dates: list[date]) -> None:
+def build_date_nav_items(config: dict, markets: list[dict], dates: list[date]) -> list[dict[str, object]]:
+    max_gap_minutes = int((config.get("fill") or {}).get("max_gap_minutes", 10))
+    items: list[dict[str, object]] = []
+    for target_date in sorted(dates, reverse=True):
+        has_data = False
+        for market in markets:
+            raw = read_market_cache(config, market, target_date)
+            standardized = standardize_market(raw, market, target_date, max_gap_minutes)
+            if not standardized.dropna(subset=["yield_pct", "move_bp"]).empty:
+                has_data = True
+                break
+        items.append({"date": target_date.isoformat(), "has_data": has_data})
+    return items
+
+
+def write_history_manifest(path: Path, dates: list) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    frame = pd.DataFrame({"date": [item.isoformat() for item in sorted(dates, reverse=True)]})
+    rows = []
+    for item in dates:
+        if isinstance(item, dict):
+            rows.append({"date": item["date"], "has_data": bool(item.get("has_data", True))})
+        else:
+            rows.append({"date": item.isoformat(), "has_data": True})
+    frame = pd.DataFrame(rows).sort_values("date", ascending=False)
     frame.to_csv(path, index=False, encoding="utf-8-sig")
 
 

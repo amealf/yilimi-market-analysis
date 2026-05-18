@@ -62,9 +62,13 @@ def standardize_market(raw: pd.DataFrame, market: dict, target_date, max_gap_min
         minute["move_bp"] = pd.NA
     else:
         open_observed_utc = after_open.index[0]
-        open_yield_pct = float(after_open.iloc[0])
-        minute["move_bp"] = (pd.to_numeric(minute["yield_pct"], errors="coerce") - open_yield_pct) * 100
-        minute.loc[minute.index < open_utc, "move_bp"] = pd.NA
+        if open_observed_utc > open_utc + pd.Timedelta(minutes=max_gap_minutes):
+            open_yield_pct = pd.NA
+            minute["move_bp"] = pd.NA
+        else:
+            open_yield_pct = float(after_open.iloc[0])
+            minute["move_bp"] = (pd.to_numeric(minute["yield_pct"], errors="coerce") - open_yield_pct) * 100
+            minute.loc[minute.index < open_utc, "move_bp"] = pd.NA
 
     output = minute.reset_index(names="timestamp_utc")
     output["region"] = market["region"]
