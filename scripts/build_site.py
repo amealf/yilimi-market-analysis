@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "scripts"
 SITE_DIR = ROOT / "site"
 CONFIG_PATH = ROOT / "charts.yml"
-DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama"
+DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、Yahoo Finance、CSV"
 
 
 def load_config() -> dict:
@@ -84,9 +84,26 @@ def build_usdt_speed_indicator(chart: dict) -> dict:
     return module.chart_meta(data)
 
 
+def build_global_30y_bond_intraday(chart: dict) -> dict:
+    sys.path.insert(0, str(ROOT))
+    module = importlib.import_module(chart["module"])
+
+    csv_path = site_path(chart["output_csv"])
+    html_path = site_path(chart["output_html"])
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+
+    return module.build_history(
+        config_path=ROOT / "global_30y_bond_intraday" / "config.yaml",
+        output_html=html_path,
+        summary_csv=csv_path,
+    )
+
+
 BUILDERS = {
     "margin_csi500": build_margin_csi500,
     "usdt_speed_indicator": build_usdt_speed_indicator,
+    "global_30y_bond_intraday": build_global_30y_bond_intraday,
 }
 
 

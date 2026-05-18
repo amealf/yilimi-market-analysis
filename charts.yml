@@ -1,6 +1,6 @@
 site:
   title: Yilimi Market Analysis
-  description: 跟踪 A 股融资余额、BTC/ETH 价格和稳定币发行量。
+  description: 跟踪 A 股融资余额、BTC/ETH 价格、稳定币发行量和全球30Y国债收益率。
 
 categories:
   - id: a-share-margin
@@ -9,6 +9,9 @@ categories:
   - id: crypto-liquidity
     title: 加密市场流动性
     description: 跟踪 BTC 价格与 USDT 净增速度多空指标。
+  - id: global-rates
+    title: 全球利率
+    description: 跟踪美国、日本、韩国、英国30Y国债收益率的日内bp变化。
 
 charts:
   - id: margin-csi500
@@ -27,3 +30,11 @@ charts:
     module: plot_crypto_liquidity
     output_html: charts/crypto-liquidity/usdt-speed-indicator.html
     output_csv: data/crypto-liquidity/usdt-speed-indicator.csv
+  - id: global-30y-bond-intraday
+    category: global-rates
+    title: Global 30Y Sovereign Yield Intraday Moves
+    description: UTC+0日内分钟级30Y国债收益率变化；CSV数据缺失时不补造。
+    builder: global_30y_bond_intraday
+    module: global_30y_bond_intraday.cli
+    output_html: charts/global-rates/global-30y-bond-intraday.html
+    output_csv: data/global-rates/global-30y-bond-intraday.csv

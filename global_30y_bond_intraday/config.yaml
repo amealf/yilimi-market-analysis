@@ -1,0 +1,61 @@
+date: today
+
+fill:
+  max_gap_minutes: 10
+
+output:
+  html: ../site/charts/global-rates/global-30y-bond-intraday.html
+  summary_csv: ../site/data/global-rates/global-30y-bond-intraday.csv
+  history_csv: ../site/data/global-rates/global-30y-bond-intraday-history.csv
+
+history:
+  cache_dir: ../data/global_30y_bond_intraday/cache
+
+markets:
+  - region: US
+    label: US 30Y
+    provider: yahoo
+    source_name: Yahoo
+    symbol: ^TYX
+    timezone: America/New_York
+    local_open: "08:00"
+    yield_unit: percent
+    value_scale: 0.1
+    history_lookback_days: 30
+    optional: true
+
+  - region: Japan
+    label: JP 30Y
+    provider: csv
+    source_name: CSV
+    path: ../data/global_30y_bond_intraday/japan_30y.csv
+    timestamp_column: timestamp
+    yield_column: yield
+    timezone: Asia/Tokyo
+    local_open: "09:00"
+    yield_unit: percent
+    optional: true
+
+  - region: Korea
+    label: KR 30Y
+    provider: csv
+    source_name: CSV
+    path: ../data/global_30y_bond_intraday/korea_30y.csv
+    timestamp_column: timestamp
+    yield_column: yield
+    timezone: Asia/Seoul
+    local_open: "09:00"
+    yield_unit: percent
+    optional: true
+
+  - region: UK
+    label: UK 30Y
+    provider: csv
+    source_name: CSV
+    path: ../data/global_30y_bond_intraday/uk_30y.csv
+    timestamp_column: timestamp
+    yield_column: yield
+    timezone: Europe/London
+    local_open: "08:00"
+    yield_unit: percent
+    optional: true

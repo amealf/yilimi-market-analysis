@@ -10,7 +10,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -41,6 +41,18 @@ jobs:
 
       - name: Build static site
         run: python scripts/build_site.py --all
+
+      - name: Persist global rates cache
+        run: |
+          if [ -d data/global_30y_bond_intraday ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/global_30y_bond_intraday
+            if ! git diff --cached --quiet; then
+              git commit -m "Update global 30Y intraday cache [skip ci]"
+              git push
+            fi
+          fi
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

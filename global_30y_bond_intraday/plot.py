@@ -1,0 +1,247 @@
+from __future__ import annotations
+
+import html
+import json
+import os
+from datetime import datetime, time, timezone
+from pathlib import Path
+
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.offline import get_plotlyjs
+
+from .transform import opening_markers
+
+
+COLORS = {
+    "US": "#1f77b4",
+    "Japan": "#d62728",
+    "Korea": "#2ca02c",
+    "UK": "#9467bd",
+}
+
+
+def write_plot(
+    data: pd.DataFrame,
+    markets: list[dict],
+    target_date,
+    output_html: str | Path,
+    available_dates: list | None = None,
+) -> None:
+    fig = go.Figure()
+    day_start = pd.Timestamp(datetime.combine(target_date, time.min, tzinfo=timezone.utc))
+    day_end = day_start + pd.Timedelta(days=1) - pd.Timedelta(minutes=1)
+
+    for market in markets:
+        frame = data[data["region"] == market["region"]].copy()
+        frame = trim_for_plot(frame)
+        if frame.empty:
+            frame = placeholder_frame(day_start, market)
+        frame["utc_text"] = frame["timestamp_utc"].dt.strftime("%Y-%m-%d %H:%M UTC")
+        frame["local_text"] = frame["timestamp_local"].map(format_timestamp)
+        customdata = frame[["label", "yield_pct", "utc_text", "local_text", "source"]].to_numpy()
+        fig.add_trace(
+            go.Scatter(
+                x=frame["timestamp_utc"],
+                y=frame["move_bp"],
+                mode="lines",
+                name=f"{market['label']} / {market['source_name']}",
+                showlegend=True,
+                line={"width": 2, "color": COLORS.get(market["region"], "#334155")},
+                connectgaps=False,
+                customdata=customdata,
+                hovertemplate=(
+                    "<b>%{customdata[0]}</b><br>"
+                    "Yield: %{customdata[1]:.3f}%<br>"
+                    "Move: %{y:+.2f} bp<br>"
+                    "UTC: %{customdata[2]}<br>"
+                    "Local: %{customdata[3]}<br>"
+                    "Source: %{customdata[4]}"
+                    "<extra></extra>"
+                ),
+            )
+        )
+        add_latest_annotation(fig, frame, market)
+
+    for open_time, labels in opening_markers(markets, target_date).items():
+        x_value = open_time.isoformat()
+        at_left_edge = open_time == day_start
+        fig.add_shape(
+            type="line",
+            x0=x_value,
+            x1=x_value,
+            y0=0,
+            y1=1,
+            xref="x",
+            yref="paper",
+            line={"width": 1, "dash": "dot", "color": "#64748b"},
+        )
+        fig.add_annotation(
+            x=x_value,
+            y=1,
+            xref="x",
+            yref="paper",
+            text=" / ".join(labels),
+            showarrow=False,
+            xanchor="left" if at_left_edge else "center",
+            xshift=5 if at_left_edge else 0,
+            yanchor="bottom",
+            font={"size": 11, "color": "#475569"},
+        )
+
+    fig.update_layout(
+        title={"text": "Global 30Y Sovereign Yield Intraday Moves", "x": 0.5, "xanchor": "center"},
+        margin={"l": 64, "r": 42, "t": 76, "b": 64},
+        paper_bgcolor="#ffffff",
+        plot_bgcolor="#ffffff",
+        hovermode="x unified",
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "left", "x": 0},
+        xaxis={
+            "title": "UTC+0 time",
+            "range": [day_start, day_end],
+            "tickformat": "%H:%M",
+            "showgrid": True,
+            "gridcolor": "#e5e7eb",
+            "zeroline": False,
+        },
+        yaxis={
+            "title": "Move from local open (bp)",
+            "showgrid": True,
+            "gridcolor": "#e5e7eb",
+            "zeroline": True,
+            "zerolinecolor": "#94a3b8",
+        },
+        font={"family": "Microsoft YaHei, Noto Sans CJK SC, Arial, sans-serif", "color": "#172033"},
+    )
+
+    write_html(fig, output_html, target_date, available_dates or [])
+
+
+def add_latest_annotation(fig: go.Figure, frame: pd.DataFrame, market: dict) -> None:
+    valid = frame.dropna(subset=["yield_pct", "move_bp"])
+    if valid.empty:
+        return
+    latest = valid.iloc[-1]
+    fig.add_annotation(
+        x=latest["timestamp_utc"],
+        y=latest["move_bp"],
+        text=f"{html.escape(market['label'])}<br>{float(latest['yield_pct']):.3f}% / {float(latest['move_bp']):+.1f} bp",
+        showarrow=False,
+        xanchor="left",
+        yanchor="middle",
+        bgcolor="rgba(255,255,255,.72)",
+        bordercolor="rgba(148,163,184,.55)",
+        borderwidth=1,
+        font={"size": 11},
+    )
+
+
+def trim_for_plot(frame: pd.DataFrame) -> pd.DataFrame:
+    valid_positions = frame.index[frame["move_bp"].notna()].tolist()
+    if not valid_positions:
+        return frame.iloc[0:0].copy()
+    start_position = frame.index.get_loc(valid_positions[0])
+    end_position = frame.index.get_loc(valid_positions[-1])
+    return frame.iloc[start_position : end_position + 1].copy()
+
+
+def placeholder_frame(day_start: pd.Timestamp, market: dict) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "timestamp_utc": day_start,
+                "timestamp_local": day_start.tz_convert(market["timezone"]),
+                "label": market["label"],
+                "yield_pct": pd.NA,
+                "move_bp": pd.NA,
+                "source": market["source_name"],
+            }
+        ]
+    )
+
+
+def format_timestamp(value: object) -> str:
+    if pd.isna(value):
+        return ""
+    return pd.Timestamp(value).strftime("%Y-%m-%d %H:%M %Z")
+
+
+def write_html(fig: go.Figure, output_html: str | Path, target_date, available_dates: list) -> None:
+    path = Path(output_html)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    date_nav = render_date_nav(target_date, available_dates)
+    plotly_script = ensure_plotly_asset(path)
+    graph_html = fig.to_html(
+        full_html=False,
+        include_plotlyjs=False,
+        default_width="100%",
+        default_height="100%",
+        config={"displaylogo": False, "responsive": True},
+    )
+    page = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <script>if(new URLSearchParams(location.search).get("embed")==="1")document.documentElement.classList.add("is-embed");</script>
+  <script src="{html.escape(plotly_script)}"></script>
+  <title>Global 30Y Sovereign Yield Intraday Moves</title>
+  <style>
+    html,body{{margin:0;width:100%;height:100%;overflow:hidden;background:#fff;color:#172033;font-family:"Microsoft YaHei","Noto Sans CJK SC",Arial,sans-serif}}
+    .page{{position:relative;width:100vw;height:100vh;background:#fff}}
+    .home-link{{position:absolute;left:14px;top:14px;z-index:5;padding:7px 10px;border:1px solid rgba(120,129,145,.34);border-radius:6px;color:#526071;background:rgba(255,255,255,.76);font-size:13px;text-decoration:none;box-shadow:0 6px 18px rgba(15,23,42,.08)}}
+    .home-link:hover{{color:#172033;background:rgba(255,255,255,.95)}}
+    .is-embed .home-link{{display:none}}
+    .date-nav{{position:absolute;right:14px;top:14px;z-index:5;display:flex;align-items:center;gap:8px;color:#526071;background:rgba(255,255,255,.76);border:1px solid rgba(120,129,145,.34);border-radius:6px;padding:6px 8px;box-shadow:0 6px 18px rgba(15,23,42,.08)}}
+    .date-nav label{{font-size:12px}}
+    .date-nav select{{border:1px solid #cbd5e1;border-radius:5px;background:#fff;color:#172033;font-size:13px;padding:3px 6px}}
+    .is-embed .date-nav{{display:none}}
+    .js-plotly-plot,.plot-container,.svg-container{{width:100%!important;height:100%!important}}
+  </style>
+</head>
+<body>
+  <div class="page">
+    <a class="home-link" href="../../index.html" aria-label="Home">Home</a>
+    {date_nav}
+    {graph_html}
+  </div>
+</body>
+</html>
+"""
+    path.write_text(page, encoding="utf-8")
+
+
+def ensure_plotly_asset(output_html: Path) -> str:
+    site_root = find_site_root(output_html)
+    asset_path = site_root / "assets" / "plotly.min.js"
+    asset_path.parent.mkdir(parents=True, exist_ok=True)
+    if not asset_path.exists():
+        asset_path.write_text(get_plotlyjs(), encoding="utf-8")
+    relative = os.path.relpath(asset_path, output_html.parent)
+    return relative.replace("\\", "/")
+
+
+def find_site_root(path: Path) -> Path:
+    for parent in path.parents:
+        if parent.name == "site":
+            return parent
+    if len(path.parents) >= 3:
+        return path.parents[2]
+    return path.parent
+
+
+def render_date_nav(target_date, available_dates: list) -> str:
+    date_values = sorted({str(item) for item in available_dates} | {str(target_date)}, reverse=True)
+    if len(date_values) <= 1:
+        return ""
+    options = []
+    for value in date_values:
+        selected = " selected" if value == str(target_date) else ""
+        options.append(f'<option value="global-30y-bond-intraday-{html.escape(value)}.html"{selected}>{html.escape(value)}</option>')
+    return f"""<div class="date-nav">
+      <label for="history-date">Date</label>
+      <select id="history-date" onchange="location.href=this.value">
+        {''.join(options)}
+      </select>
+    </div>
+    <script>window.GLOBAL_30Y_AVAILABLE_DATES={json.dumps(date_values)};</script>"""
