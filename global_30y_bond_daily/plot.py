@@ -24,12 +24,13 @@ PYTHON_DEFAULT_COLORS = [
 
 
 MAJOR_EVENTS = [
-    {"date": "2008-09-15", "label": "Lehman"},
-    {"date": "2018-07-06", "label": "Trade war"},
-    {"date": "2020-03-11", "label": "COVID"},
-    {"date": "2022-02-24", "label": "Russia-Ukraine"},
-    {"date": "2022-09-23", "label": "UK mini-budget"},
-    {"date": "2022-12-20", "label": "BOJ YCC"},
+    {"date": "2008-09-15", "label": "Lehman", "ax": -45, "ay": 48},
+    {"date": "2018-07-06", "label": "Trade war", "ax": 42, "ay": -42},
+    {"date": "2020-03-11", "label": "COVID", "ax": -42, "ay": -44},
+    {"date": "2022-02-24", "label": "Russia-Ukraine", "ax": 54, "ay": 52},
+    {"date": "2022-09-23", "label": "UK mini-budget", "ax": -76, "ay": -52},
+    {"date": "2022-12-20", "label": "BOJ YCC", "ax": 58, "ay": -56},
+    {"date": "2025-06-22", "label": "US-Iran", "ax": -54, "ay": -46},
 ]
 
 
@@ -79,6 +80,11 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
         hovermode="x unified",
+        hoverlabel={
+            "bgcolor": "rgba(255,255,255,0.25)",
+            "bordercolor": "rgba(100,116,139,0.35)",
+            "font": {"color": "#172033"},
+        },
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.05, "xanchor": "left", "x": 0},
         xaxis={
             "title": "Date",
@@ -101,36 +107,43 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
 def add_event_markers(fig: go.Figure, data: pd.DataFrame) -> None:
     if data.empty:
         return
-    min_date = pd.to_datetime(data["date"]).min()
-    max_date = pd.to_datetime(data["date"]).max()
+    us_frame = data[data["region"] == "US"].copy()
+    if us_frame.empty:
+        return
+    us_frame["date"] = pd.to_datetime(us_frame["date"])
+    us_frame = us_frame.dropna(subset=["date", "close_yield_pct"]).sort_values("date")
     for index, event in enumerate(MAJOR_EVENTS):
-        event_date = pd.Timestamp(event["date"])
-        if event_date < min_date or event_date > max_date:
+        point = event_point(us_frame, pd.Timestamp(event["date"]))
+        if point is None:
             continue
-        fig.add_shape(
-            type="line",
-            x0=event_date,
-            x1=event_date,
-            y0=0,
-            y1=1,
-            xref="x",
-            yref="paper",
-            line={"width": 0.8, "dash": "dot", "color": "#64748b"},
-        )
         fig.add_annotation(
-            x=event_date,
-            y=0.98,
+            x=point["date"],
+            y=point["close_yield_pct"],
             xref="x",
-            yref="paper",
+            yref="y",
             text=html.escape(event["label"]),
-            showarrow=False,
-            textangle=-90,
-            xanchor="left",
-            yanchor="top",
-            yshift=-(index % 2) * 16,
-            font={"size": 10, "color": "#475569"},
-            bgcolor="rgba(255,255,255,.62)",
+            showarrow=True,
+            arrowhead=2,
+            arrowsize=0.8,
+            arrowwidth=0.8,
+            arrowcolor="#475569",
+            ax=event["ax"],
+            ay=event["ay"],
+            font={"size": 10, "color": "#334155"},
+            bgcolor="rgba(255,255,255,.55)",
+            bordercolor="rgba(100,116,139,.32)",
+            borderwidth=1,
         )
+
+
+def event_point(frame: pd.DataFrame, event_date: pd.Timestamp) -> pd.Series | None:
+    after = frame[frame["date"] >= event_date]
+    if after.empty:
+        return None
+    point = after.iloc[0]
+    if point["date"] > event_date + pd.Timedelta(days=7):
+        return None
+    return point
 
 
 def latest_annotation_items(items: list[tuple[pd.DataFrame, dict]], y_column: str, threshold: float) -> list[tuple[pd.DataFrame, dict, float]]:
