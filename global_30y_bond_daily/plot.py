@@ -46,6 +46,7 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
     range_end = latest_date + pd.offsets.BDay(RIGHT_PADDING_DAYS)
     default_range = [default_start.strftime("%Y-%m-%d"), range_end.strftime("%Y-%m-%d")]
     full_range = [first_date.strftime("%Y-%m-%d"), range_end.strftime("%Y-%m-%d")]
+    range_buttons, active_range_index = build_range_buttons(2016, max(2026, int(latest_date.year)), range_end, full_range, 2018)
     for index, market in enumerate(markets):
         frame = data[data["region"] == market["region"]].copy().sort_values("date")
         if frame.empty:
@@ -61,7 +62,7 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
                 x=pd.to_datetime(frame["date"]),
                 y=frame["close_yield_pct"],
                 mode="lines",
-                name=f"{market['label']} / {market['source_name']}",
+                name=market["label"],
                 line={"width": 1.0, "color": PYTHON_DEFAULT_COLORS[index % len(PYTHON_DEFAULT_COLORS)]},
                 opacity=1.0 if market["region"] == "US" else 0.6,
                 connectgaps=False,
@@ -95,9 +96,9 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.015, "xanchor": "left", "x": 0},
         updatemenus=[
             {
-                "type": "buttons",
-                "direction": "right",
-                "active": 0,
+                "type": "dropdown",
+                "direction": "down",
+                "active": active_range_index,
                 "showactive": True,
                 "x": 1,
                 "xanchor": "right",
@@ -107,18 +108,7 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
                 "bgcolor": "rgba(255,255,255,.75)",
                 "bordercolor": "rgba(148,163,184,.55)",
                 "font": {"size": 11},
-                "buttons": [
-                    {
-                        "label": "2018+",
-                        "method": "relayout",
-                        "args": [{"xaxis.range": default_range, "xaxis.autorange": False}],
-                    },
-                    {
-                        "label": "All",
-                        "method": "relayout",
-                        "args": [{"xaxis.range": full_range, "xaxis.autorange": False}],
-                    },
-                ],
+                "buttons": range_buttons,
             }
         ],
         xaxis={
@@ -141,6 +131,36 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
         font={"family": "Microsoft YaHei, Noto Sans CJK SC, Arial, sans-serif", "color": "#172033"},
     )
     write_html(fig, output_html)
+
+
+def build_range_buttons(
+    first_year: int,
+    last_year: int,
+    range_end: pd.Timestamp,
+    full_range: list[str],
+    default_year: int,
+) -> tuple[list[dict], int]:
+    buttons = []
+    active = 0
+    for index, year in enumerate(range(first_year, last_year + 1)):
+        if year == default_year:
+            active = index
+        start = pd.Timestamp(year=year, month=1, day=1)
+        buttons.append(
+            {
+                "label": f"{year}+",
+                "method": "relayout",
+                "args": [{"xaxis.range": [start.strftime("%Y-%m-%d"), range_end.strftime("%Y-%m-%d")], "xaxis.autorange": False}],
+            }
+        )
+    buttons.append(
+        {
+            "label": "All",
+            "method": "relayout",
+            "args": [{"xaxis.range": full_range, "xaxis.autorange": False}],
+        }
+    )
+    return buttons, active
 
 
 def add_footer_note(fig: go.Figure, markets: list[dict]) -> None:

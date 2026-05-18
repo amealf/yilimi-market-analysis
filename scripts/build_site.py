@@ -17,6 +17,11 @@ SCRIPTS_DIR = ROOT / "scripts"
 SITE_DIR = ROOT / "site"
 CONFIG_PATH = ROOT / "charts.yml"
 DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、Yahoo Finance、CNBC、TradingView、CSV"
+CATEGORY_SOURCES = {
+    "a-share-margin": "东方财富、新浪财经",
+    "crypto-liquidity": "CryptoCompare、DefiLlama",
+    "global-rates": "CNBC、TradingView、CSV",
+}
 
 
 def load_config() -> dict:
@@ -318,6 +323,11 @@ def category_card(category: dict, charts: list[dict], prefix: str = "") -> str:
 """
 
 
+def category_footer(category_id: str, now: str) -> str:
+    sources = CATEGORY_SOURCES.get(category_id, DATA_SOURCES)
+    return f"<footer>刷新时间：北京时间 {now}　数据来源：{html.escape(sources)}。</footer>"
+
+
 def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
     categories = {item["id"]: item for item in config["categories"]}
     charts = [chart for chart in config["charts"] if chart["id"] in selected_ids]
@@ -341,7 +351,7 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
   <a class="button" href="../index.html">返回首页</a>
 </div>
 <div class="grid">{category_cards}</div>
-<footer>刷新时间：北京时间 {now}　数据来源：{html.escape(DATA_SOURCES)}。页面由 GitHub Actions 自动生成。</footer>
+{category_footer(category["id"], now)}
 """
         (category_dir / "index.html").write_text(
             render_page(category["title"], category_body),
@@ -363,7 +373,6 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
   <h2>市场监控</h2>
   <div class="grid">{''.join(home_cards)}</div>
 </section>
-<footer>刷新时间：北京时间 {now}　数据来源：{html.escape(DATA_SOURCES)}。页面由 GitHub Actions 自动生成。</footer>
 """
     (SITE_DIR / "index.html").write_text(
         render_page(config["site"]["title"], body),
