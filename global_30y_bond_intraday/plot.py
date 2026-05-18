@@ -5,6 +5,7 @@ import json
 import os
 from datetime import datetime, time, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -25,6 +26,9 @@ PYTHON_DEFAULT_COLORS = [
     "#bcbd22",
     "#17becf",
 ]
+
+
+CHART_DATA_SOURCES = "CNBC、TradingView"
 
 
 def write_plot(
@@ -100,9 +104,11 @@ def write_plot(
             font={"size": 11, "color": "#475569"},
         )
 
+    add_footer_note(fig)
+
     fig.update_layout(
         title={"text": "Global 30Y Sovereign Yield Intraday Moves", "x": 0.5, "xanchor": "center"},
-        margin={"l": 70, "r": 150, "t": 124, "b": 78},
+        margin={"l": 70, "r": 150, "t": 124, "b": 96},
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
         hovermode="x unified",
@@ -126,6 +132,22 @@ def write_plot(
     )
 
     write_html(fig, output_html, target_date, available_dates or [])
+
+
+def add_footer_note(fig: go.Figure) -> None:
+    updated = pd.Timestamp.now(tz=ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
+    fig.add_annotation(
+        x=0,
+        y=-0.145,
+        xref="paper",
+        yref="paper",
+        text=f"刷新时间：北京时间 {updated}　数据来源：{html.escape(CHART_DATA_SOURCES)}",
+        showarrow=False,
+        xanchor="left",
+        yanchor="top",
+        align="left",
+        font={"size": 11, "color": "#64748b"},
+    )
 
 
 def latest_annotation_items(items: list[tuple[pd.DataFrame, dict]], y_column: str, threshold: float) -> list[tuple[pd.DataFrame, dict, float]]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import os
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -24,6 +25,8 @@ PYTHON_DEFAULT_COLORS = [
 
 
 RIGHT_PADDING_DAYS = 30
+DAILY_POINT_THRESHOLD = 500
+CHART_DATA_SOURCES = "CNBC、TradingView"
 
 
 MAJOR_EVENTS = [
@@ -46,38 +49,16 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
     range_end = latest_date + pd.offsets.BDay(RIGHT_PADDING_DAYS)
     default_range = [default_start.strftime("%Y-%m-%d"), range_end.strftime("%Y-%m-%d")]
     full_range = [first_date.strftime("%Y-%m-%d"), range_end.strftime("%Y-%m-%d")]
-    range_buttons, active_range_index = build_range_buttons(2016, max(2026, int(latest_date.year)), range_end, full_range, 2018)
+    trace_modes = build_trace_modes(data, markets, 2016, max(2026, int(latest_date.year)), range_end)
+    range_buttons, active_range_index = build_range_buttons(trace_modes, full_range, 2018)
     for index, market in enumerate(markets):
         frame = data[data["region"] == market["region"]].copy().sort_values("date")
         if frame.empty:
             continue
-        frame["date_text"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")
-        frame["daily_change_plot"] = pd.to_numeric(frame["daily_change_bp"], errors="coerce").round(1)
-        frame["ytd_change_plot"] = pd.to_numeric(frame["ytd_change_bp"], errors="coerce").round(1)
-        customdata = frame[
-            ["label", "source", "date_text", "daily_change_plot", "ytd_change_plot"]
-        ].to_numpy()
-        fig.add_trace(
-            go.Scatter(
-                x=pd.to_datetime(frame["date"]),
-                y=frame["close_yield_pct"],
-                mode="lines",
-                name=market["label"],
-                line={"width": 1.0, "color": PYTHON_DEFAULT_COLORS[index % len(PYTHON_DEFAULT_COLORS)]},
-                opacity=1.0 if market["region"] == "US" else 0.6,
-                connectgaps=False,
-                customdata=customdata,
-                hovertemplate=(
-                    "<b>%{customdata[0]}</b><br>"
-                    "Yield: %{y:.3f}%<br>"
-                    "1D: %{customdata[3]:+.1f} bp<br>"
-                    "YTD: %{customdata[4]:+.1f} bp<br>"
-                    "Date: %{customdata[2]}<br>"
-                    "Source: %{customdata[1]}"
-                    "<extra></extra>"
-                ),
-            )
-        )
+        color = PYTHON_DEFAULT_COLORS[index % len(PYTHON_DEFAULT_COLORS)]
+        opacity = 1.0 if market["region"] == "US" else 0.6
+        add_market_trace(fig, prepare_daily_frame(frame), market, color, opacity, visible=trace_modes[2018]["mode"] == "daily")
+        add_market_trace(fig, prepare_weekly_frame(frame), market, color, opacity, visible=trace_modes[2018]["mode"] == "weekly")
 
     add_event_markers(fig, data)
     add_footer_note(fig, markets)
@@ -133,45 +114,133 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
     write_html(fig, output_html)
 
 
-def build_range_buttons(
+def build_trace_modes(
+    data: pd.DataFrame,
+    markets: list[dict],
     first_year: int,
     last_year: int,
     range_end: pd.Timestamp,
-    full_range: list[str],
-    default_year: int,
-) -> tuple[list[dict], int]:
+) -> dict[int, dict[str, object]]:
+    rows = data.copy()
+    rows["date"] = pd.to_datetime(rows["date"], errors="coerce")
+    row_count = len(markets) * 2
+    modes = {}
+    for year in range(first_year, last_year + 1):
+        start = pd.Timestamp(year=year, month=1, day=1)
+        point_count = int(rows[(rows["date"] >= start) & (rows["date"] <= range_end)].shape[0])
+        mode = "daily" if point_count < DAILY_POINT_THRESHOLD else "weekly"
+        visible = []
+        for _market in markets:
+            visible.extend([mode == "daily", mode == "weekly"])
+        modes[year] = {
+            "start": start,
+            "point_count": point_count,
+            "mode": mode,
+            "visible": visible[:row_count],
+        }
+    return modes
+
+
+def build_range_buttons(trace_modes: dict[int, dict[str, object]], full_range: list[str], default_year: int) -> tuple[list[dict], int]:
     buttons = []
     active = 0
-    for index, year in enumerate(range(first_year, last_year + 1)):
+    for index, year in enumerate(sorted(trace_modes)):
         if year == default_year:
             active = index
-        start = pd.Timestamp(year=year, month=1, day=1)
+        mode = trace_modes[year]
+        start = mode["start"]
         buttons.append(
             {
                 "label": f"{year}+",
-                "method": "relayout",
-                "args": [{"xaxis.range": [start.strftime("%Y-%m-%d"), range_end.strftime("%Y-%m-%d")], "xaxis.autorange": False}],
+                "method": "update",
+                "args": [
+                    {"visible": mode["visible"], "showlegend": mode["visible"]},
+                    {"xaxis.range": [start.strftime("%Y-%m-%d"), full_range[1]], "xaxis.autorange": False},
+                ],
             }
         )
+    all_visible = [False, True] * (len(trace_modes[next(iter(trace_modes))]["visible"]) // 2)
     buttons.append(
         {
             "label": "All",
-            "method": "relayout",
-            "args": [{"xaxis.range": full_range, "xaxis.autorange": False}],
+            "method": "update",
+            "args": [
+                {"visible": all_visible, "showlegend": all_visible},
+                {"xaxis.range": full_range, "xaxis.autorange": False},
+            ],
         }
     )
     return buttons, active
 
 
+def prepare_daily_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    daily = frame.copy()
+    daily["date"] = pd.to_datetime(daily["date"])
+    daily["date_text"] = daily["date"].dt.strftime("%Y-%m-%d")
+    daily["period_change_plot"] = pd.to_numeric(daily["daily_change_bp"], errors="coerce").round(1)
+    daily["period_label"] = "1D"
+    daily["ytd_change_plot"] = pd.to_numeric(daily["ytd_change_bp"], errors="coerce").round(1)
+    return daily
+
+
+def prepare_weekly_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    weekly = frame.copy()
+    weekly["date"] = pd.to_datetime(weekly["date"])
+    weekly = weekly.dropna(subset=["date", "close_yield_pct"]).sort_values("date")
+    if weekly.empty:
+        return weekly
+    weekly = weekly.groupby(weekly["date"].dt.to_period("W-FRI"), sort=True).tail(1).copy()
+    weekly["date_text"] = weekly["date"].dt.strftime("%Y-%m-%d")
+    weekly["period_change_plot"] = (weekly["close_yield_pct"].diff() * 100).round(1)
+    weekly["period_label"] = "1W"
+    weekly["ytd_change_plot"] = pd.to_numeric(weekly["ytd_change_bp"], errors="coerce").round(1)
+    return weekly
+
+
+def add_market_trace(
+    fig: go.Figure,
+    frame: pd.DataFrame,
+    market: dict,
+    color: str,
+    opacity: float,
+    visible: bool,
+) -> None:
+    customdata = frame[
+        ["label", "source", "date_text", "period_change_plot", "ytd_change_plot", "period_label"]
+    ].to_numpy()
+    fig.add_trace(
+        go.Scatter(
+            x=pd.to_datetime(frame["date"]),
+            y=frame["close_yield_pct"],
+            mode="lines",
+            name=market["label"],
+            showlegend=visible,
+            visible=visible,
+            line={"width": 1.0, "color": color},
+            opacity=opacity,
+            connectgaps=False,
+            customdata=customdata,
+            hovertemplate=(
+                "<b>%{customdata[0]}</b><br>"
+                "Yield: %{y:.3f}%<br>"
+                "%{customdata[5]}: %{customdata[3]:+.1f} bp<br>"
+                "YTD: %{customdata[4]:+.1f} bp<br>"
+                "Date: %{customdata[2]}<br>"
+                "Source: %{customdata[1]}"
+                "<extra></extra>"
+            ),
+        )
+    )
+
+
 def add_footer_note(fig: go.Figure, markets: list[dict]) -> None:
-    updated = pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d %H:%M UTC")
-    sources = ", ".join(f"{market['label']} {market['source_name']}" for market in markets)
+    updated = pd.Timestamp.now(tz=ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
     fig.add_annotation(
         x=0,
         y=-0.145,
         xref="paper",
         yref="paper",
-        text=f"Updated: {updated} | Sources: {html.escape(sources)}",
+        text=f"刷新时间：北京时间 {updated}　数据来源：{html.escape(CHART_DATA_SOURCES)}",
         showarrow=False,
         xanchor="left",
         yanchor="top",

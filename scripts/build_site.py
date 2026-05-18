@@ -20,7 +20,7 @@ DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、Yahoo 
 CATEGORY_SOURCES = {
     "a-share-margin": "东方财富、新浪财经",
     "crypto-liquidity": "CryptoCompare、DefiLlama",
-    "global-rates": "CNBC、TradingView、CSV",
+    "global-rates": "CNBC、TradingView",
 }
 
 
