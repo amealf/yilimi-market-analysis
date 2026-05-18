@@ -23,6 +23,9 @@ PYTHON_DEFAULT_COLORS = [
 ]
 
 
+RIGHT_PADDING_DAYS = 30
+
+
 MAJOR_EVENTS = [
     {"date": "2008-09-15", "label": "Lehman", "ax": -58, "ay": 64},
     {"date": "2018-07-06", "label": "Trade war", "ax": 56, "ay": -58},
@@ -38,8 +41,11 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
     fig = go.Figure()
     date_values = pd.to_datetime(data["date"], errors="coerce").dropna()
     default_start = pd.Timestamp("2018-01-01")
-    default_end = date_values.max() if not date_values.empty else pd.Timestamp.today().normalize()
-    default_range = [default_start.strftime("%Y-%m-%d"), default_end.strftime("%Y-%m-%d")]
+    latest_date = date_values.max() if not date_values.empty else pd.Timestamp.today().normalize()
+    first_date = date_values.min() if not date_values.empty else default_start
+    range_end = latest_date + pd.offsets.BDay(RIGHT_PADDING_DAYS)
+    default_range = [default_start.strftime("%Y-%m-%d"), range_end.strftime("%Y-%m-%d")]
+    full_range = [first_date.strftime("%Y-%m-%d"), range_end.strftime("%Y-%m-%d")]
     for index, market in enumerate(markets):
         frame = data[data["region"] == market["region"]].copy().sort_values("date")
         if frame.empty:
@@ -73,10 +79,11 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
         )
 
     add_event_markers(fig, data)
+    add_footer_note(fig, markets)
 
     fig.update_layout(
-        title={"text": "Global 30Y Sovereign Yield Daily History", "x": 0.5, "xanchor": "center", "y": 0.985, "yanchor": "top"},
-        margin={"l": 72, "r": 76, "t": 104, "b": 74},
+        title={"text": "Global 30Y Sovereign Yield Daily History", "x": 0.5, "xanchor": "center", "y": 0.965, "yanchor": "top"},
+        margin={"l": 72, "r": 76, "t": 104, "b": 96},
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
         hovermode="x unified",
@@ -109,7 +116,7 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
                     {
                         "label": "All",
                         "method": "relayout",
-                        "args": [{"xaxis.autorange": True}],
+                        "args": [{"xaxis.range": full_range, "xaxis.autorange": False}],
                     },
                 ],
             }
@@ -134,6 +141,23 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
         font={"family": "Microsoft YaHei, Noto Sans CJK SC, Arial, sans-serif", "color": "#172033"},
     )
     write_html(fig, output_html)
+
+
+def add_footer_note(fig: go.Figure, markets: list[dict]) -> None:
+    updated = pd.Timestamp.now(tz="UTC").strftime("%Y-%m-%d %H:%M UTC")
+    sources = ", ".join(f"{market['label']} {market['source_name']}" for market in markets)
+    fig.add_annotation(
+        x=0,
+        y=-0.145,
+        xref="paper",
+        yref="paper",
+        text=f"Updated: {updated} | Sources: {html.escape(sources)}",
+        showarrow=False,
+        xanchor="left",
+        yanchor="top",
+        align="left",
+        font={"size": 11, "color": "#64748b"},
+    )
 
 
 def add_event_markers(fig: go.Figure, data: pd.DataFrame) -> None:
