@@ -43,9 +43,7 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
         frame["date_text"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")
         frame["daily_change_plot"] = pd.to_numeric(frame["daily_change_bp"], errors="coerce").round(1)
         frame["ytd_change_plot"] = pd.to_numeric(frame["ytd_change_bp"], errors="coerce").round(1)
-        customdata = frame[
-            ["label", "source", "date_text", "daily_change_plot", "ytd_change_plot"]
-        ].to_numpy()
+        customdata = frame[["daily_change_plot", "ytd_change_plot"]].to_numpy()
         fig.add_trace(
             go.Scatter(
                 x=pd.to_datetime(frame["date"]),
@@ -56,12 +54,12 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
                 connectgaps=False,
                 customdata=customdata,
                 hovertemplate=(
-                    "<b>%{customdata[0]}</b><br>"
+                    f"<b>{html.escape(market['label'])}</b><br>"
                     "Yield: %{y:.3f}%<br>"
-                    "1D: %{customdata[3]:+.1f} bp<br>"
-                    "YTD: %{customdata[4]:+.1f} bp<br>"
-                    "Date: %{customdata[2]}<br>"
-                    "Source: %{customdata[1]}"
+                    "1D: %{customdata[0]:+.1f} bp<br>"
+                    "YTD: %{customdata[1]:+.1f} bp<br>"
+                    "Date: %{x|%Y-%m-%d}<br>"
+                    f"Source: {html.escape(market['source_name'])}"
                     "<extra></extra>"
                 ),
             )
@@ -77,7 +75,9 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
         margin={"l": 72, "r": 150, "t": 112, "b": 74},
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
-        hovermode="x unified",
+        hovermode="closest",
+        hoverdistance=18,
+        spikedistance=-1,
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.05, "xanchor": "left", "x": 0},
         xaxis={
             "title": "Date",
