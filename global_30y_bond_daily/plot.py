@@ -36,6 +36,10 @@ MAJOR_EVENTS = [
 
 def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path) -> None:
     fig = go.Figure()
+    date_values = pd.to_datetime(data["date"], errors="coerce").dropna()
+    default_start = pd.Timestamp("2018-01-01")
+    default_end = date_values.max() if not date_values.empty else pd.Timestamp.today().normalize()
+    default_range = [default_start.strftime("%Y-%m-%d"), default_end.strftime("%Y-%m-%d")]
     for index, market in enumerate(markets):
         frame = data[data["region"] == market["region"]].copy().sort_values("date")
         if frame.empty:
@@ -71,8 +75,8 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
     add_event_markers(fig, data)
 
     fig.update_layout(
-        title={"text": "Global 30Y Sovereign Yield Daily History", "x": 0.5, "xanchor": "center"},
-        margin={"l": 72, "r": 76, "t": 112, "b": 74},
+        title={"text": "Global 30Y Sovereign Yield Daily History", "x": 0.5, "xanchor": "center", "y": 0.985, "yanchor": "top"},
+        margin={"l": 72, "r": 76, "t": 104, "b": 74},
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
         hovermode="x unified",
@@ -81,12 +85,44 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
             "bordercolor": "rgba(100,116,139,0.35)",
             "font": {"color": "#172033"},
         },
-        legend={"orientation": "h", "yanchor": "bottom", "y": 1.05, "xanchor": "left", "x": 0},
+        legend={"orientation": "h", "yanchor": "bottom", "y": 1.015, "xanchor": "left", "x": 0},
+        updatemenus=[
+            {
+                "type": "buttons",
+                "direction": "right",
+                "active": 0,
+                "showactive": True,
+                "x": 1,
+                "xanchor": "right",
+                "y": 1.045,
+                "yanchor": "bottom",
+                "pad": {"r": 0, "t": 0},
+                "bgcolor": "rgba(255,255,255,.75)",
+                "bordercolor": "rgba(148,163,184,.55)",
+                "font": {"size": 11},
+                "buttons": [
+                    {
+                        "label": "2018+",
+                        "method": "relayout",
+                        "args": [{"xaxis.range": default_range, "xaxis.autorange": False}],
+                    },
+                    {
+                        "label": "All",
+                        "method": "relayout",
+                        "args": [{"xaxis.autorange": True}],
+                    },
+                ],
+            }
+        ],
         xaxis={
             "title": "Date",
             "showgrid": True,
             "gridcolor": "#e5e7eb",
             "zeroline": False,
+            "range": default_range,
+            "dtick": "M12",
+            "tick0": "2018-01-01",
+            "tickformat": "%Y",
             "rangebreaks": [{"bounds": ["sat", "mon"]}],
         },
         yaxis={
