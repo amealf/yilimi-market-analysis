@@ -347,7 +347,10 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
             render_page(category["title"], category_body),
             encoding="utf-8",
         )
-        home_cards.append(category_card(category, category_charts))
+        if category["id"] == "global-rates":
+            home_cards.append(category_card(category, category_charts))
+        else:
+            home_cards.append("".join(chart_card(chart, category, generated) for chart in category_charts))
 
     body = f"""
 <div class="top home-top">

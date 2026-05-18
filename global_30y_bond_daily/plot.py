@@ -43,7 +43,9 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
         frame["date_text"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")
         frame["daily_change_plot"] = pd.to_numeric(frame["daily_change_bp"], errors="coerce").round(1)
         frame["ytd_change_plot"] = pd.to_numeric(frame["ytd_change_bp"], errors="coerce").round(1)
-        customdata = frame[["daily_change_plot", "ytd_change_plot"]].to_numpy()
+        customdata = frame[
+            ["label", "source", "date_text", "daily_change_plot", "ytd_change_plot"]
+        ].to_numpy()
         fig.add_trace(
             go.Scatter(
                 x=pd.to_datetime(frame["date"]),
@@ -51,15 +53,16 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
                 mode="lines",
                 name=f"{market['label']} / {market['source_name']}",
                 line={"width": 1.0, "color": PYTHON_DEFAULT_COLORS[index % len(PYTHON_DEFAULT_COLORS)]},
+                opacity=1.0 if market["region"] == "US" else 0.8,
                 connectgaps=False,
                 customdata=customdata,
                 hovertemplate=(
-                    f"<b>{html.escape(market['label'])}</b><br>"
+                    "<b>%{customdata[0]}</b><br>"
                     "Yield: %{y:.3f}%<br>"
-                    "1D: %{customdata[0]:+.1f} bp<br>"
-                    "YTD: %{customdata[1]:+.1f} bp<br>"
-                    "Date: %{x|%Y-%m-%d}<br>"
-                    f"Source: {html.escape(market['source_name'])}"
+                    "1D: %{customdata[3]:+.1f} bp<br>"
+                    "YTD: %{customdata[4]:+.1f} bp<br>"
+                    "Date: %{customdata[2]}<br>"
+                    "Source: %{customdata[1]}"
                     "<extra></extra>"
                 ),
             )
@@ -75,9 +78,7 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
         margin={"l": 72, "r": 150, "t": 112, "b": 74},
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
-        hovermode="closest",
-        hoverdistance=18,
-        spikedistance=-1,
+        hovermode="x unified",
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.05, "xanchor": "left", "x": 0},
         xaxis={
             "title": "Date",
