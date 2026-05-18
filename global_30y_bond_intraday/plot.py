@@ -196,8 +196,9 @@ def write_html(fig: go.Figure, output_html: str | Path, target_date, available_d
   <style>
     html,body{{margin:0;width:100%;height:100%;overflow:hidden;background:#fff;color:#172033;font-family:"Microsoft YaHei","Noto Sans CJK SC",Arial,sans-serif}}
     .page{{position:relative;width:100vw;height:100vh;background:#fff}}
-    .home-link{{position:absolute;left:14px;top:14px;z-index:5;padding:7px 10px;border:1px solid rgba(120,129,145,.34);border-radius:6px;color:#526071;background:rgba(255,255,255,.76);font-size:13px;text-decoration:none;box-shadow:0 6px 18px rgba(15,23,42,.08)}}
+    .home-link{{position:absolute;left:14px;top:14px;z-index:5;display:grid;place-items:center;width:32px;height:32px;border:1px solid rgba(120,129,145,.34);border-radius:6px;color:#526071;background:rgba(255,255,255,.76);text-decoration:none;box-shadow:0 6px 18px rgba(15,23,42,.08)}}
     .home-link:hover{{color:#172033;background:rgba(255,255,255,.95)}}
+    .home-link svg{{width:18px;height:18px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}}
     .is-embed .home-link{{display:none}}
     .date-nav{{position:absolute;right:14px;top:14px;z-index:5;display:flex;align-items:center;gap:8px;color:#526071;background:rgba(255,255,255,.76);border:1px solid rgba(120,129,145,.34);border-radius:6px;padding:6px 8px;box-shadow:0 6px 18px rgba(15,23,42,.08)}}
     .date-nav label{{font-size:12px}}
@@ -209,7 +210,13 @@ def write_html(fig: go.Figure, output_html: str | Path, target_date, available_d
 </head>
 <body>
   <div class="page">
-    <a class="home-link" href="../../index.html" aria-label="Home">Home</a>
+    <a class="home-link" href="../../index.html" aria-label="Home">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 10.5 12 3l9 7.5"></path>
+        <path d="M5 9.5V21h14V9.5"></path>
+        <path d="M9 21v-6h6v6"></path>
+      </svg>
+    </a>
     {date_nav}
     {graph_html}
   </div>
