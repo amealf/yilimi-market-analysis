@@ -1,6 +1,6 @@
 site:
   title: Yilimi Market Analysis
-  description: 跟踪 A 股融资余额、BTC/ETH 价格、稳定币发行量和全球30Y国债收益率。
+  description: 跟踪 A 股融资余额、BTC/ETH 价格、稳定币发行量、韩国信用交易融资余额和全球30Y国债收益率。
 
 categories:
   - id: a-share-margin
@@ -9,6 +9,9 @@ categories:
   - id: crypto-liquidity
     title: 加密市场流动性
     description: 跟踪 BTC 价格与 USDT 净增速度多空指标。
+  - id: other-markets
+    title: 其他市场
+    description: 跟踪韩国信用交易融资余额，并与 KOSPI 走势对照。
   - id: global-rates
     title: 宏观观察
     description: 跟踪美国、日本、韩国、英国30Y国债收益率日内变化，并跟踪美国、日本、韩国、英国、中国大陆30Y日线历史。
@@ -30,6 +33,14 @@ charts:
     module: plot_crypto_liquidity
     output_html: charts/crypto-liquidity/usdt-speed-indicator.html
     output_csv: data/crypto-liquidity/usdt-speed-indicator.csv
+  - id: korea-margin-kospi
+    category: other-markets
+    title: 韩国信用交易融资余额 和 KOSPI
+    description: 韩国信用交易融资余额和 KOSPI 的对比图。
+    builder: korea_margin_kospi
+    module: plot_korea_margin_kospi
+    output_html: charts/other-markets/korea-margin-kospi.html
+    output_csv: data/other-markets/korea-margin-kospi.csv
   - id: global-30y-bond-intraday
     category: global-rates
     title: Global 30Y Sovereign Yield Intraday Moves

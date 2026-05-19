@@ -16,10 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "scripts"
 SITE_DIR = ROOT / "site"
 CONFIG_PATH = ROOT / "charts.yml"
-DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、Yahoo Finance、CNBC、TradingView、CSV"
+DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、KOFIA FreeSIS、Yahoo Finance、CNBC、TradingView、CSV"
 CATEGORY_SOURCES = {
     "a-share-margin": "东方财富、新浪财经",
     "crypto-liquidity": "CryptoCompare、DefiLlama",
+    "other-markets": "KOFIA FreeSIS、Yahoo Finance",
     "global-rates": "CNBC、TradingView",
 }
 
@@ -89,6 +90,40 @@ def build_usdt_speed_indicator(chart: dict) -> dict:
     return module.chart_meta(data)
 
 
+def build_korea_margin_kospi(chart: dict) -> dict:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+    module = importlib.import_module(chart["module"])
+
+    financing = module.fetch_credit_financing_balance()
+    kospi = module.fetch_kospi()
+    data = pd.merge(financing, kospi, on="date", how="outer").sort_values("date")
+    data = module.add_index_ratios(data)
+
+    csv_path = site_path(chart["output_csv"])
+    html_path = site_path(chart["output_html"])
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+
+    data.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    module.write_interactive_html(data, html_path)
+
+    meta = module.chart_meta(data)
+    return {
+        "latest_financing_date": meta["latestFinancingDate"],
+        "latest_financing": meta["latestFinancing"],
+        "latest_kospi_date": meta["latestKospiDate"],
+        "latest_kospi": meta["latestKospi"],
+        "metrics": [
+            {
+                "label": "信用交易融资余额",
+                "value": f"{meta['latestFinancing']:.3f} 万亿韩元",
+                "date": meta["latestFinancingDate"],
+            },
+            {"label": "KOSPI", "value": f"{meta['latestKospi']:.2f}", "date": meta["latestKospiDate"]},
+        ],
+    }
+
+
 def build_global_30y_bond_intraday(chart: dict) -> dict:
     sys.path.insert(0, str(ROOT))
     module = importlib.import_module(chart["module"])
@@ -124,6 +159,7 @@ def build_global_30y_bond_daily(chart: dict) -> dict:
 BUILDERS = {
     "margin_csi500": build_margin_csi500,
     "usdt_speed_indicator": build_usdt_speed_indicator,
+    "korea_margin_kospi": build_korea_margin_kospi,
     "global_30y_bond_intraday": build_global_30y_bond_intraday,
     "global_30y_bond_daily": build_global_30y_bond_daily,
 }
@@ -357,7 +393,7 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
             render_page(category["title"], category_body),
             encoding="utf-8",
         )
-        if category["id"] == "global-rates":
+        if category["id"] in {"other-markets", "global-rates"}:
             home_cards.append(category_card(category, category_charts))
         else:
             home_cards.append("".join(chart_card(chart, category, generated) for chart in category_charts))
