@@ -16,11 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "scripts"
 SITE_DIR = ROOT / "site"
 CONFIG_PATH = ROOT / "charts.yml"
-DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、KOFIA FreeSIS、Yahoo Finance、CNBC、TradingView、CSV"
+DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、KOFIA FreeSIS、Yahoo Finance、Naver Finance、CNBC、TradingView、CSV"
 CATEGORY_SOURCES = {
     "a-share-margin": "东方财富、新浪财经",
     "crypto-liquidity": "CryptoCompare、DefiLlama",
-    "other-markets": "KOFIA FreeSIS、Yahoo Finance",
+    "other-markets": "KOFIA FreeSIS、Yahoo Finance、Naver Finance",
     "global-rates": "CNBC、TradingView",
 }
 
@@ -96,7 +96,10 @@ def build_korea_margin_kospi(chart: dict) -> dict:
 
     financing = module.fetch_credit_financing_balance()
     kospi = module.fetch_kospi()
+    foreign = module.fetch_foreign_net_buy()
     data = pd.merge(financing, kospi, on="date", how="outer").sort_values("date")
+    data = pd.merge(data, foreign, on="date", how="outer").sort_values("date")
+    data = data.dropna(subset=["credit_financing_trillion_krw", "kospi_close"])
     data = module.add_index_ratios(data)
 
     csv_path = site_path(chart["output_csv"])
@@ -120,6 +123,11 @@ def build_korea_margin_kospi(chart: dict) -> dict:
                 "date": meta["latestFinancingDate"],
             },
             {"label": "KOSPI", "value": f"{meta['latestKospi']:.2f}", "date": meta["latestKospiDate"]},
+            {
+                "label": "外资净买入",
+                "value": f"{meta['latestForeignNetBuy']:.0f} 亿韩元",
+                "date": meta["latestForeignDate"],
+            },
         ],
     }
 
