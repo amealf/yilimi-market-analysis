@@ -35,8 +35,8 @@ charts:
     output_csv: data/crypto-liquidity/usdt-speed-indicator.csv
   - id: korea-margin-kospi
     category: other-markets
-    title: 韩国信用交易融资余额 和 KOSPI
-    description: 韩国信用交易融资余额、KOSPI 和外国人净买入的对比图。
+    title: KOSPI & Cash flow
+    description: KOSPI、韩国信用交易融资余额和外国人净买入的对比图。
     builder: korea_margin_kospi
     module: plot_korea_margin_kospi
     output_html: charts/other-markets/korea-margin-kospi.html
