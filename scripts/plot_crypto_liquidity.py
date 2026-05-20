@@ -494,7 +494,7 @@ const series=[
   {key:"usRate",label:"美国30Y利率",color:colors.usRate,scale:"rate",width:.95}
 ];
 const periodNames={day:"日",week:"周",month:"月"};
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="week",hidden={usdc:true,stable:true,ma5:true,ma30:true,dev300:true,usRate:true};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="week",hoverPeriod=null,hidden={usdc:true,stable:true,ma5:true,ma30:true,dev300:true,usRate:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function weekKey(t){const d=new Date(t),day=d.getUTCDay(),diff=(day+6)%7,s=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-diff));return s.toISOString().slice(0,10)}
@@ -553,13 +553,15 @@ function drawPeriodTabs(x,y){
   const labels=[["day","日"],["week","周"],["month","月"]];
   ctx.font="12px Microsoft YaHei,Arial";
   labels.forEach(([key,label],i)=>{
-    const w=34,h=20,left=x+i*(w+6),active=period===key;
+    const w=34,h=20,left=x+i*(w+6),active=period===key,hovered=hoverPeriod===key;
     periodBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});
-    ctx.fillStyle=active?"#60a5fa":"rgba(255,255,255,.9)";
-    ctx.strokeStyle=active?"#60a5fa":"rgba(147,197,253,.62)";
-    roundRect(left,y,w,h,6);ctx.fill();ctx.stroke();
-    ctx.fillStyle=active?"#fff":"rgba(37,99,235,.58)";ctx.textAlign="center";ctx.fillText(label,left+w/2,y+14);
+    ctx.strokeStyle=active?"#60a5fa":hovered?"#93c5fd":"rgba(71,85,105,.42)";
+    ctx.lineWidth=active||hovered?1.35:.9;
+    roundRect(left,y,w,h,6);ctx.stroke();
+    ctx.fillStyle=hovered?"#17202a":active?"#17202a":"rgba(71,85,105,.58)";
+    ctx.textAlign="center";ctx.fillText(label,left+w/2,y+14);
   });
+  ctx.lineWidth=1;
 }
 function hitPeriod(p){return periodBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawAxes(){
@@ -648,11 +650,11 @@ function showTip(p){
   tip.innerHTML=`<b>${r.date}（${periodNames[period]}）</b><br>${lines.join("<br>")}`;
   tip.style.display="block";tip.style.left=Math.min(p.rect.width-250,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
 }
-canvas.addEventListener("click",e=>{const p=pointer(e),tab=hitPeriod(p);if(tab){period=tab.key;zoom=null;tip.style.display="none";draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];tip.style.display="none";draw()});
+canvas.addEventListener("click",e=>{const p=pointer(e),tab=hitPeriod(p);if(tab){period=tab.key;hoverPeriod=tab.key;zoom=null;tip.style.display="none";draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];tip.style.display="none";draw()});
 canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitPeriod(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};tip.style.display="none"});
-canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;tip.style.display="none";draw();drawSelection();return}showTip(p)});
+canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;tip.style.display="none";draw();drawSelection();return}const tab=hitPeriod(p);if(tab){if(hoverPeriod!==tab.key){hoverPeriod=tab.key;draw()}canvas.style.cursor="pointer";tip.style.display="none";return}if(hoverPeriod!==null){hoverPeriod=null;draw()}showTip(p)});
 window.addEventListener("mouseup",()=>{if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1);if(Math.abs(x1-x0)>12){const a=timeAtX(x0),b=timeAtX(x1);zoom=[Math.min(a,b),Math.max(a,b)]}drag=null;tip.style.display="none";draw()});
-canvas.addEventListener("mouseleave",()=>{if(drag)return;tip.style.display="none";draw()});
+canvas.addEventListener("mouseleave",()=>{if(drag)return;hoverPeriod=null;tip.style.display="none";canvas.style.cursor="default";draw()});
 canvas.addEventListener("dblclick",()=>{zoom=null;drag=null;tip.style.display="none";draw()});
 window.addEventListener("resize",resize);
 refreshRows();
