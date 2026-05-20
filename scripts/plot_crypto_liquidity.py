@@ -469,7 +469,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     .home-link svg{width:18px;height:18px;stroke:currentColor}
     canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
     .tip{position:absolute;display:none;pointer-events:none;box-sizing:border-box;min-width:230px;max-width:390px;background:rgba(255,255,255,.20);border:1px solid rgba(120,129,145,.42);border-radius:6px;color:#17202a;padding:9px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(2px);overflow-wrap:anywhere;white-space:normal}
-    .tip.event-tip{background-color:rgba(255,255,255,.20);border-color:rgba(147,197,253,.32);box-shadow:0 12px 28px rgba(15,23,42,.08);backdrop-filter:blur(1.5px)}
+    .tip.event-tip{background:rgba(255,255,255,.25);border-color:rgba(147,197,253,.32);box-shadow:0 12px 28px rgba(15,23,42,.08);backdrop-filter:none}
   </style>
 </head>
 <body>
@@ -518,7 +518,7 @@ function pct(v,d=1){return v==null?"-":Number(v).toLocaleString("en-US",{maximum
 function multiple(v){return v==null?"-":Number(v/100).toLocaleString("en-US",{maximumFractionDigits:0,minimumFractionDigits:0})}
 function ratioValue(item,r){const base=ratioBase[item.key];return base&&r[item.key]!=null?r[item.key]/base*100:null}
 function plotValue(item,r){return item.scale==="ratio"?ratioValue(item,r):r[item.key]}
-function valueText(item,r){if(item.scale==="ratio"){const v=ratioValue(item,r),daily=item.key==="btc"?r.btcDaily:r.ethDaily;return v==null?"-":pct(v)+" ("+usd(r[item.key])+")，"+periodNames[period]+"涨跌："+signedPct(daily)}if(item.scale==="rate")return ratePct(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
+function valueText(item,r){if(item.scale==="ratio"){const daily=item.key==="btc"?r.btcDaily:r.ethDaily;return r[item.key]==null?"-":usd(r[item.key])+"，"+signedPct(daily)}if(item.scale==="rate")return ratePct(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
 function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.map(r=>plotValue(item,r)).filter(v=>v!=null&&Number.isFinite(v))});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
 function currentRange(){return zoom||[rows[0].t,displayEnd()]}
@@ -556,10 +556,10 @@ function drawPeriodTabs(x,y){
   labels.forEach(([key,label],i)=>{
     const w=34,h=20,left=x+i*(w+6),active=period===key;
     periodBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});
-    ctx.fillStyle=active?"#2563eb":"rgba(255,255,255,.9)";
-    ctx.strokeStyle=active?"#2563eb":"#cfd8e2";
+    ctx.fillStyle=active?"#60a5fa":"rgba(255,255,255,.9)";
+    ctx.strokeStyle=active?"#60a5fa":"rgba(147,197,253,.62)";
     roundRect(left,y,w,h,6);ctx.fill();ctx.stroke();
-    ctx.fillStyle=active?"#fff":colors.muted;ctx.textAlign="center";ctx.fillText(label,left+w/2,y+14);
+    ctx.fillStyle=active?"#fff":"rgba(37,99,235,.58)";ctx.textAlign="center";ctx.fillText(label,left+w/2,y+14);
   });
 }
 function hitPeriod(p){return periodBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
