@@ -10,6 +10,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
+import numpy as np
 import pandas as pd
 
 
@@ -18,6 +19,7 @@ END_DATE = date.today()
 DISPLAY_START = pd.Timestamp("2018-09-01")
 PRICE_SOURCE = "https://min-api.cryptocompare.com/data/v2/histoday"
 STABLECOIN_SOURCE = "https://stablecoins.llama.fi/stablecoincharts/all"
+US_30Y_RATE_CACHE = Path(__file__).resolve().parents[1] / "data" / "global_30y_bond_daily" / "cache" / "US.csv"
 MARKET_EVENTS = [
     {
         "date": "2020-03-15",
@@ -175,6 +177,58 @@ def fetch_stablecoin_supply(stablecoin_id: int, column: str, start: date, end: d
     return frame.drop_duplicates("date").sort_values("date").set_index("date")[column]
 
 
+def load_us_30y_rate(start: date, end: date) -> pd.Series:
+    if not US_30Y_RATE_CACHE.exists():
+        return pd.Series(dtype="float64", name="us_rate")
+
+    frame = pd.read_csv(US_30Y_RATE_CACHE, parse_dates=["date"])
+    frame["us_rate"] = pd.to_numeric(frame["close"], errors="coerce")
+    frame = frame.loc[(frame["date"] >= pd.Timestamp(start)) & (frame["date"] <= pd.Timestamp(end)), ["date", "us_rate"]]
+    return frame.drop_duplicates("date").sort_values("date").set_index("date")["us_rate"]
+
+
+def attach_us_rate(data: pd.DataFrame) -> pd.DataFrame:
+    has_date_column = "date" in data.columns
+    frame = data.set_index("date") if has_date_column else data.copy()
+    frame = frame.drop(columns=["us_rate"], errors="ignore")
+    frame = frame.join(load_us_30y_rate(START_DATE, END_DATE))
+    frame["us_rate"] = frame["us_rate"].ffill()
+    return frame.reset_index() if has_date_column else frame
+
+
+def add_transmission_index(data: pd.DataFrame) -> None:
+    if "date" in data.columns:
+        source = data[["date", "BTC", "usdt_b"]].copy()
+    else:
+        source = data[["BTC", "usdt_b"]].copy()
+        source["date"] = data.index
+    source["date"] = pd.to_datetime(source["date"])
+    source["BTC"] = pd.to_numeric(source["BTC"], errors="coerce")
+    source["usdt_b"] = pd.to_numeric(source["usdt_b"], errors="coerce")
+    source = source.dropna(subset=["BTC", "usdt_b"])
+    source = source.loc[(source["BTC"] > 0) & (source["usdt_b"] > 0)].set_index("date")
+
+    for key, freq in [("week", "W-SUN"), ("month", "ME")]:
+        column = f"transmission_{key}"
+        data[column] = pd.NA
+        if source.empty:
+            continue
+
+        periodic = source.resample(freq).last()
+        periodic["btc_return"] = np.log(periodic["BTC"] / periodic["BTC"].shift(1))
+        periodic["usdt_growth"] = np.log(periodic["usdt_b"] / periodic["usdt_b"].shift(1))
+        periodic["usdt_marginal"] = periodic["usdt_growth"] - periodic["usdt_growth"].shift(1)
+        valid = periodic.dropna(subset=["btc_return", "usdt_marginal"])
+        if valid.empty:
+            continue
+
+        values = valid["usdt_marginal"].rank(pct=True) * 100 + valid["btc_return"].rank(pct=True) * 100 - 100
+        if "date" in data.columns:
+            data[column] = pd.to_datetime(data["date"]).map(values)
+        else:
+            data[column] = pd.Series(data.index, index=data.index).map(values)
+
+
 def add_usdt_indicators(data: pd.DataFrame) -> None:
     for window in [5, 30]:
         data[f"usdt_ma_{window}d_b"] = data["usdt_b"].rolling(window, min_periods=1).mean()
@@ -184,6 +238,8 @@ def add_usdt_indicators(data: pd.DataFrame) -> None:
         data[delta_column] = data["usdt_b"] - data["usdt_b"].shift(window)
         historical_mean = data[delta_column].expanding(min_periods=1).mean().shift(1)
         data[f"usdt_delta_dev_{window}d_b"] = data[delta_column] - historical_mean
+
+    add_transmission_index(data)
 
 
 def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
@@ -197,6 +253,7 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
             cached = pd.read_csv(cache_path, parse_dates=["date"])
             if "stable_b" not in cached.columns:
                 cached["stable_b"] = cached[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
+            cached = attach_us_rate(cached)
             add_usdt_indicators(cached)
             return cached
         raise
@@ -204,6 +261,7 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
     index = pd.date_range(START_DATE, END_DATE, freq="D")
     data = pd.DataFrame(index=index)
     data = data.join(btc).join(eth).join(usdt).join(usdc)
+    data = attach_us_rate(data)
     for column in ["BTC", "ETH", "USDT", "USDC"]:
         data[column] = data[column].ffill()
 
@@ -377,6 +435,9 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
                 "ma5": series_value(row.usdt_ma_5d_b, 4),
                 "ma30": series_value(row.usdt_ma_30d_b, 4),
                 "dev300": series_value(row.usdt_delta_dev_300d_b, 4),
+                "usRate": series_value(row.us_rate, 4),
+                "transmissionWeek": series_value(row.transmission_week, 4),
+                "transmissionMonth": series_value(row.transmission_month, 4),
             }
         )
 
@@ -386,7 +447,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
             "meta": meta,
             "events": MARKET_EVENTS,
             "generatedAt": generated_at,
-            "dataSources": "CryptoCompare、DefiLlama",
+            "dataSources": "CryptoCompare、DefiLlama、CNBC/TradingView",
         },
         ensure_ascii=False,
         separators=(",", ":"),
@@ -407,20 +468,21 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     .home-link:hover{color:#17202a;background:rgba(255,255,255,.94)}
     .home-link svg{width:18px;height:18px;stroke:currentColor}
     canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
-    .tip{position:absolute;display:none;pointer-events:none;box-sizing:border-box;min-width:230px;max-width:390px;background:rgba(255,255,255,.68);border:1px solid rgba(120,129,145,.42);border-radius:6px;color:#17202a;padding:9px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(2px);overflow-wrap:anywhere;white-space:normal}
+    .tip{position:absolute;display:none;pointer-events:none;box-sizing:border-box;min-width:230px;max-width:390px;background:rgba(255,255,255,.20);border:1px solid rgba(120,129,145,.42);border-radius:6px;color:#17202a;padding:9px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(2px);overflow-wrap:anywhere;white-space:normal}
+    .tip.event-tip{background-color:rgba(255,255,255,.20);border-color:rgba(147,197,253,.32);box-shadow:0 12px 28px rgba(15,23,42,.08);backdrop-filter:blur(1.5px)}
   </style>
 </head>
 <body>
 <div class="page"><a class="home-link" href="../../index.html" aria-label="返回主页" title="返回主页"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></a><canvas id="chart"></canvas><div class="tip" id="tip"></div></div>
 <script>
 const P=__PAYLOAD__;
-const rows=P.rows.map(r=>({...r,t:new Date(r.date).getTime()}));
+const rawRows=P.rows.map(r=>({...r,t:new Date(r.date).getTime()}));
 const canvas=document.getElementById("chart");
 const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"#A5A5A5",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",ma5:"#2ca02c",ma30:"#d62728",dev300:"#111827",event:"#2563eb",eventSoft:"rgba(37,99,235,.46)",eventBorder:"rgba(147,197,253,.72)",eventFill:"rgba(255,255,255,.78)",eventActiveFill:"rgba(255,255,255,.94)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.85)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",ma5:"#2ca02c",ma30:"#d62728",dev300:"#111827",usRate:"#9467bd",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const series=[
   {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15},
   {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05},
@@ -429,48 +491,78 @@ const series=[
   {key:"stable",label:"USDT+USDC",color:colors.stable,scale:"supply",width:1.1},
   {key:"ma5",label:"USDT 5D均线",color:colors.ma5,scale:"supply",width:.95},
   {key:"ma30",label:"USDT 30D均线",color:colors.ma30,scale:"supply",width:1.05},
-  {key:"dev300",label:"300D前均差",color:colors.dev300,scale:"supply",width:.85}
+  {key:"dev300",label:"300D前均差",color:colors.dev300,scale:"supply",width:.85},
+  {key:"usRate",label:"美国30Y利率",color:colors.usRate,scale:"rate",width:.95}
 ];
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],hidden={usdc:true,stable:true,ma5:true,ma30:true,dev300:true};
-const DAY=86400000,displayEnd=rows[rows.length-1].t+DAY*30;
-const ratioBase={btc:rows.find(r=>r.btc!=null)?.btc,eth:rows.find(r=>r.eth!=null)?.eth};
+const periodNames={day:"日",week:"周",month:"月"};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="week",hidden={usdc:true,stable:true,ma5:true,ma30:true,dev300:true,usRate:true};
+const DAY=86400000;
+function cloneRow(r){return {...r}}
+function weekKey(t){const d=new Date(t),day=d.getUTCDay(),diff=(day+6)%7,s=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-diff));return s.toISOString().slice(0,10)}
+function monthKey(t){const d=new Date(t);return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`}
+function groupedRows(mode){
+  if(mode==="day")return rawRows.map(cloneRow);
+  const map=new Map(),keyFn=mode==="week"?weekKey:monthKey;
+  rawRows.forEach(r=>map.set(keyFn(r.t),cloneRow(r)));
+  return Array.from(map.values()).sort((a,b)=>a.t-b.t).map((r,i,a)=>({...r,btcDaily:i&&a[i-1].btc&&r.btc!=null?(r.btc/a[i-1].btc-1)*100:null,ethDaily:i&&a[i-1].eth&&r.eth!=null?(r.eth/a[i-1].eth-1)*100:null}));
+}
+let rows=groupedRows(period),ratioBase={};
+function refreshRows(){rows=groupedRows(period);ratioBase={btc:rows.find(r=>r.btc!=null)?.btc,eth:rows.find(r=>r.eth!=null)?.eth}}
+function displayEnd(){return rows[rows.length-1].t+DAY*30}
 function usd(v,d=0){return v==null?"-":"$"+Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})}
 function b(v){return v==null?"-":Number(v).toFixed(2)+"B"}
 function signedB(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"")+n.toFixed(2)+"B"}
 function signedPct(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"")+n.toFixed(2)+"%"}
+function ratePct(v){return v==null?"-":Number(v).toFixed(2)+"%"}
 function pct(v,d=1){return v==null?"-":Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})+"%"}
 function multiple(v){return v==null?"-":Number(v/100).toLocaleString("en-US",{maximumFractionDigits:0,minimumFractionDigits:0})}
 function ratioValue(item,r){const base=ratioBase[item.key];return base&&r[item.key]!=null?r[item.key]/base*100:null}
 function plotValue(item,r){return item.scale==="ratio"?ratioValue(item,r):r[item.key]}
-function valueText(item,r){if(item.scale==="ratio"){const v=ratioValue(item,r),daily=item.key==="btc"?r.btcDaily:r.ethDaily;return v==null?"-":pct(v)+" ("+usd(r[item.key])+")，当日涨跌："+signedPct(daily)}return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
+function valueText(item,r){if(item.scale==="ratio"){const v=ratioValue(item,r),daily=item.key==="btc"?r.btcDaily:r.ethDaily;return v==null?"-":pct(v)+" ("+usd(r[item.key])+")，"+periodNames[period]+"涨跌："+signedPct(daily)}if(item.scale==="rate")return ratePct(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
 function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.map(r=>plotValue(item,r)).filter(v=>v!=null&&Number.isFinite(v))});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
-function currentRange(){return zoom||[rows[0].t,displayEnd]}
+function currentRange(){return zoom||[rows[0].t,displayEnd()]}
 function visibleRows(){const [t0,t1]=currentRange();const sample=rows.filter(r=>r.t>=t0&&r.t<=t1);return sample.length?sample:rows}
 function resize(){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
 function xScale(t){return box.x0+(t-box.t0)/(box.t1-box.t0)*(box.x1-box.x0)}
 function yRatio(v){return box.y1-(Math.log(v)-box.ratioMin)/(box.ratioMax-box.ratioMin)*(box.y1-box.y0)}
 function ySupply(v){return box.y1-(v-box.supplyMin)/(box.supplyMax-box.supplyMin)*(box.y1-box.y0)}
-function yFor(item,v){return item.scale==="ratio"?yRatio(v):ySupply(v)}
+function yRate(v){return box.y1-(v-box.rateMin)/(box.rateMax-box.rateMin)*(box.y1-box.y0)}
+function yFor(item,v){if(item.scale==="ratio")return yRatio(v);if(item.scale==="rate")return yRate(v);return ySupply(v)}
 function gridLine(y){ctx.strokeStyle=colors.grid;ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(box.x0,y);ctx.lineTo(box.x1,y);ctx.stroke()}
-function drawLegend(x,y){
+function drawLegend(x,y,maxX){
   legendBoxes=[];
   ctx.font="12px Microsoft YaHei,Arial";
-  let cur=x;
+  let cur=x,rowY=y;
   series.forEach(item=>{
     const labelW=ctx.measureText(item.label).width,total=labelW+68,off=hidden[item.key];
-    legendBoxes.push({key:item.key,x0:cur-5,y0:y-12,x1:cur+total-16,y1:y+9});
+    if(cur>x&&cur+total>maxX){cur=x;rowY+=20}
+    legendBoxes.push({key:item.key,x0:cur-5,y0:rowY-12,x1:cur+total-16,y1:rowY+9});
     ctx.globalAlpha=off?.28:1;
     ctx.strokeStyle=off?"rgba(82,96,113,.45)":item.color;
     ctx.fillStyle=off?"rgba(82,96,113,.58)":colors.text;
     ctx.lineWidth=item.scale==="dev"?1.8:2;
     ctx.setLineDash(item.dash||[]);
-    ctx.beginPath();ctx.moveTo(cur,y);ctx.lineTo(cur+28,y);ctx.stroke();ctx.setLineDash([]);
-    ctx.textAlign="left";ctx.fillText(item.label,cur+36,y+4);
+    ctx.beginPath();ctx.moveTo(cur,rowY);ctx.lineTo(cur+28,rowY);ctx.stroke();ctx.setLineDash([]);
+    ctx.textAlign="left";ctx.fillText(item.label,cur+36,rowY+4);
     ctx.globalAlpha=1;
     cur+=total;
   });
 }
+function drawPeriodTabs(x,y){
+  periodBoxes=[];
+  const labels=[["day","日"],["week","周"],["month","月"]];
+  ctx.font="12px Microsoft YaHei,Arial";
+  labels.forEach(([key,label],i)=>{
+    const w=34,h=20,left=x+i*(w+6),active=period===key;
+    periodBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});
+    ctx.fillStyle=active?"#2563eb":"rgba(255,255,255,.9)";
+    ctx.strokeStyle=active?"#2563eb":"#cfd8e2";
+    roundRect(left,y,w,h,6);ctx.fill();ctx.stroke();
+    ctx.fillStyle=active?"#fff":colors.muted;ctx.textAlign="center";ctx.fillText(label,left+w/2,y+14);
+  });
+}
+function hitPeriod(p){return periodBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawAxes(){
   [10,100,1000,10000,100000].forEach(v=>{if(Math.log(v)<box.ratioMin||Math.log(v)>box.ratioMax)return;const y=yRatio(v);gridLine(y);ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(multiple(v),box.x0-9,y+4)});
   [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
@@ -490,59 +582,39 @@ function drawPath(item){
 function roundRect(x,y,w,h,r){
   const rr=Math.min(r,w/2,h/2);
   ctx.beginPath();
-  ctx.moveTo(x+rr,y);
-  ctx.lineTo(x+w-rr,y);
-  ctx.quadraticCurveTo(x+w,y,x+w,y+rr);
-  ctx.lineTo(x+w,y+h-rr);
-  ctx.quadraticCurveTo(x+w,y+h,x+w-rr,y+h);
-  ctx.lineTo(x+rr,y+h);
-  ctx.quadraticCurveTo(x,y+h,x,y+h-rr);
-  ctx.lineTo(x,y+rr);
-  ctx.quadraticCurveTo(x,y,x+rr,y);
+  ctx.moveTo(x+rr,y);ctx.lineTo(x+w-rr,y);ctx.quadraticCurveTo(x+w,y,x+w,y+rr);ctx.lineTo(x+w,y+h-rr);ctx.quadraticCurveTo(x+w,y+h,x+w-rr,y+h);ctx.lineTo(x+rr,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-rr);ctx.lineTo(x,y+rr);ctx.quadraticCurveTo(x,y,x+rr,y);
 }
 function drawEvents(activeEventDate=null){
   eventBoxes=[];
   ctx.font="11px Microsoft YaHei,Arial";
   const lanes=[box.x0-999,box.x0-999,box.x0-999],visible=events.filter(e=>e.t>=box.t0&&e.t<=box.t1).sort((a,b)=>a.t-b.t);
   visible.forEach(event=>{
-    const active=activeEventDate===event.date;
-    const x=xScale(event.t),pad=7,w=Math.ceil(ctx.measureText(event.label).width+pad*2),h=18;
+    const active=activeEventDate===event.date,x=xScale(event.t),pad=7,w=Math.ceil(ctx.measureText(event.label).width+pad*2),h=18;
     let lane=lanes.findIndex(right=>right<=x-w/2-4);
     if(lane<0)lane=lanes.indexOf(Math.min(...lanes));
     const y=box.y1-26-lane*22,left=Math.max(box.x0+2,Math.min(box.x1-w-2,x-w/2));
     lanes[lane]=left+w;
-    ctx.save();
-    ctx.strokeStyle=active?"rgba(37,99,235,.38)":"rgba(147,197,253,.18)";
-    ctx.lineWidth=.8;
-    ctx.beginPath();
-    ctx.moveTo(x,box.y1);
-    ctx.lineTo(x,y+h);
-    ctx.stroke();
-    ctx.fillStyle=active?colors.eventActiveFill:colors.eventFill;
-    ctx.strokeStyle=active?colors.event:colors.eventBorder;
-    roundRect(left,y,w,h,9);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle=active?colors.event:colors.eventSoft;
-    ctx.textAlign="center";
-    ctx.fillText(event.label,left+w/2,y+12.5);
-    ctx.restore();
+    ctx.save();ctx.strokeStyle=active?"rgba(37,99,235,.38)":"rgba(147,197,253,.18)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x,box.y1);ctx.lineTo(x,y+h);ctx.stroke();
+    ctx.fillStyle=active?colors.eventActiveFill:colors.eventFill;ctx.strokeStyle=active?colors.event:colors.eventBorder;roundRect(left,y,w,h,9);ctx.fill();ctx.stroke();
+    ctx.fillStyle=active?colors.eventTextActive:colors.eventText;ctx.textAlign="center";ctx.fillText(event.label,left+w/2,y+12.5);ctx.restore();
     eventBoxes.push({event,x0:left,y0:y,x1:left+w,y1:y+h});
   });
 }
 function draw(active,eventDate=null){
+  refreshRows();
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035);
-  const axisLeft=76,axisRight=76,titleY=outer+18,legendY=outer+56,xLabelGap=isEmbed?37:54;
-  const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+82,y1=h-outer-xLabelGap;
+  const axisLeft=76,axisRight=76,titleY=outer+18,legendY=outer+56,xLabelGap=isEmbed?35:38;
+  const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+94,y1=h-outer-xLabelGap;
   const [t0,t1]=currentRange(),sample=visibleRows();
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample);
   const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable","ma5","ma30","dev300"]),sample);
-  box={x0,x1,y0,y1,t0,t1,ratioMin:Math.log(Math.max(ratioMin0*.75,.01)),ratioMax:Math.log(ratioMax0*1.18),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1)};
+  const [rateMin0,rateMax0]=extent(["usRate"],sample),ratePad=Math.max((rateMax0-rateMin0)*.18,.15);
+  box={x0,x1,y0,y1,t0,t1,ratioMin:Math.log(Math.max(ratioMin0*.75,.01)),ratioMax:Math.log(ratioMax0*1.18),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1),rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   ctx.fillStyle=colors.text;ctx.font="700 21px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText("USDT发行量 与 BTC/ETH",w/2,titleY);
-  drawLegend(x0,legendY);
+  drawLegend(x0,legendY,x1);drawPeriodTabs(x1-112,titleY-15);
   const startY=new Date(box.t0).getUTCFullYear(),endY=new Date(box.t1).getUTCFullYear();
-  for(let year=startY;year<=endY;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.strokeStyle="#edf2f7";ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+25)}
+  for(let year=startY;year<=endY;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.strokeStyle="#edf2f7";ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
   if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：北京时间 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
@@ -564,26 +636,27 @@ function showTip(p){
   if(!inPlot(p)){tip.style.display="none";draw();return}
   const eventHit=hitEvent(p);
   if(eventHit){
-    const e=eventHit.event;
-    draw(null,e.date);
-    const x=xScale(e.t);
+    const e=eventHit.event;draw(null,e.date);const x=xScale(e.t);
     ctx.setLineDash([4,5]);ctx.strokeStyle="rgba(37,99,235,.42)";ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);
+    tip.className="tip event-tip";
     tip.innerHTML=`<b>${e.label}</b><br>时间：${e.dateLabel}<br>类型：${e.type}<br>${e.description}`;
     tip.style.display="block";tip.style.left=Math.min(p.rect.width-310,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-190,p.y-92))+"px";
     return;
   }
   const i=nearest(p.x),r=rows[i];draw(i);
   const lines=series.filter(item=>!hidden[item.key]).map(item=>`${item.label}：${valueText(item,r)}`);
-  tip.innerHTML=`<b>${r.date}</b><br>${lines.join("<br>")}`;
+  tip.className="tip";
+  tip.innerHTML=`<b>${r.date}（${periodNames[period]}）</b><br>${lines.join("<br>")}`;
   tip.style.display="block";tip.style.left=Math.min(p.rect.width-250,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
 }
-canvas.addEventListener("click",e=>{const p=pointer(e),hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];tip.style.display="none";draw()});
-canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};tip.style.display="none"});
+canvas.addEventListener("click",e=>{const p=pointer(e),tab=hitPeriod(p);if(tab){period=tab.key;zoom=null;tip.style.display="none";draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];tip.style.display="none";draw()});
+canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitPeriod(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};tip.style.display="none"});
 canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;tip.style.display="none";draw();drawSelection();return}showTip(p)});
 window.addEventListener("mouseup",()=>{if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1);if(Math.abs(x1-x0)>12){const a=timeAtX(x0),b=timeAtX(x1);zoom=[Math.min(a,b),Math.max(a,b)]}drag=null;tip.style.display="none";draw()});
 canvas.addEventListener("mouseleave",()=>{if(drag)return;tip.style.display="none";draw()});
 canvas.addEventListener("dblclick",()=>{zoom=null;drag=null;tip.style.display="none";draw()});
 window.addEventListener("resize",resize);
+refreshRows();
 resize();
 </script>
 </body>
