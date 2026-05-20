@@ -469,7 +469,6 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     .home-link svg{width:18px;height:18px;stroke:currentColor}
     canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
     .tip{position:absolute;display:none;pointer-events:none;box-sizing:border-box;min-width:230px;max-width:390px;background:rgba(255,255,255,.20);border:1px solid rgba(120,129,145,.42);border-radius:6px;color:#17202a;padding:9px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(2px);overflow-wrap:anywhere;white-space:normal}
-    .tip.event-tip{background:rgba(255,255,255,.25);border-color:rgba(147,197,253,.32);box-shadow:0 12px 28px rgba(15,23,42,.08);backdrop-filter:none}
   </style>
 </head>
 <body>
@@ -638,7 +637,7 @@ function showTip(p){
   if(eventHit){
     const e=eventHit.event;draw(null,e.date);const x=xScale(e.t);
     ctx.setLineDash([4,5]);ctx.strokeStyle="rgba(37,99,235,.42)";ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);
-    tip.className="tip event-tip";
+    tip.className="tip";
     tip.innerHTML=`<b>${e.label}</b><br>时间：${e.dateLabel}<br>类型：${e.type}<br>${e.description}`;
     tip.style.display="block";tip.style.left=Math.min(p.rect.width-310,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-190,p.y-92))+"px";
     return;
