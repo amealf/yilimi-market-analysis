@@ -18,6 +18,85 @@ END_DATE = date.today()
 DISPLAY_START = pd.Timestamp("2018-09-01")
 PRICE_SOURCE = "https://min-api.cryptocompare.com/data/v2/histoday"
 STABLECOIN_SOURCE = "https://stablecoins.llama.fi/stablecoincharts/all"
+MARKET_EVENTS = [
+    {
+        "date": "2020-03-15",
+        "dateLabel": "2020-03-12 / 03-15",
+        "label": "COVID / Fed QE",
+        "type": "美元流动性扩张起点",
+        "description": "3月12日全球风险资产去杠杆，BTC大幅下跌；3月15日Fed将联邦基金目标区间降至0-0.25%，并宣布购买美债和MBS，成为后续风险资产与稳定币扩张的宏观起点。",
+    },
+    {
+        "date": "2021-09-24",
+        "dateLabel": "2021-09-24",
+        "label": "中国禁令",
+        "type": "监管冲击",
+        "description": "中国监管机构强化对加密交易和挖矿的限制，PBOC称加密货币不得流通，境外交易所也不得向中国境内投资者提供服务。",
+    },
+    {
+        "date": "2021-11-03",
+        "dateLabel": "2021-11-03",
+        "label": "Fed Taper",
+        "type": "流动性转折",
+        "description": "Fed宣布开始降低资产购买速度，COVID流动性扩张由高峰转向边际收敛。",
+    },
+    {
+        "date": "2022-03-16",
+        "dateLabel": "2022-03-16",
+        "label": "Fed加息周期",
+        "type": "美元收缩",
+        "description": "Fed将目标利率区间上调至0.25%-0.50%，本轮加息周期开始，并表示后续还会继续加息，同时预告缩表。",
+    },
+    {
+        "date": "2022-05-11",
+        "dateLabel": "2022-05-10 / 05-11",
+        "label": "UST脱锚",
+        "type": "稳定币信用冲击",
+        "description": "TerraUSD脱离1美元锚定并冲击加密市场，适合观察2022年稳定币信任危机和USDT发行量回落。",
+    },
+    {
+        "date": "2022-06-01",
+        "dateLabel": "2022-06-01",
+        "label": "QT开始",
+        "type": "美元收缩",
+        "description": "Fed缩表计划开始执行，美债和MBS到期不再再投资的月度上限逐步提高，美元流动性压力继续上升。",
+    },
+    {
+        "date": "2023-03-12",
+        "dateLabel": "2023-03-10 / 03-12",
+        "label": "SVB / USDC",
+        "type": "稳定币份额迁移",
+        "description": "SVB进入接管后，Circle披露有33亿美元USDC储备在SVB，随后USDC出现赎回压力和脱锚，市场出现从USDC向USDT迁移的需求。",
+    },
+    {
+        "date": "2024-01-10",
+        "dateLabel": "2024-01-10",
+        "label": "BTC ETF通过",
+        "type": "监管/机构采用",
+        "description": "SEC批准多个现货比特币ETP上市交易，这是2024年BTC强势的重要制度事件。",
+    },
+    {
+        "date": "2024-06-01",
+        "dateLabel": "2024-06-01",
+        "label": "QT降速",
+        "type": "流动性压力缓和",
+        "description": "Fed将美债缩表月度上限从600亿美元降至250亿美元，美元流动性压力边际放缓。",
+    },
+    {
+        "date": "2024-09-18",
+        "dateLabel": "2024-09-18",
+        "label": "Fed降息",
+        "type": "流动性宽松信号",
+        "description": "Fed将目标区间下调50bp至4.75%-5.00%，成为2024年后半段风险资产定价的重要转折。",
+    },
+    {
+        "date": "2025-07-18",
+        "dateLabel": "2025-07-18",
+        "label": "GENIUS法案",
+        "type": "美国稳定币法案",
+        "description": "美国签署GENIUS Act，为支付稳定币提供联邦监管框架，适合观察稳定币进入制度化阶段。",
+    },
+]
 
 
 def request_json(url: str, retries: int = 4, pause: float = 1.0) -> object:
@@ -305,6 +384,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
         {
             "rows": records,
             "meta": meta,
+            "events": MARKET_EVENTS,
             "generatedAt": generated_at,
             "dataSources": "CryptoCompare、DefiLlama",
         },
@@ -327,7 +407,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     .home-link:hover{color:#17202a;background:rgba(255,255,255,.94)}
     .home-link svg{width:18px;height:18px;stroke:currentColor}
     canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
-    .tip{position:absolute;display:none;pointer-events:none;min-width:230px;background:rgba(255,255,255,.68);border:1px solid rgba(120,129,145,.42);border-radius:6px;color:#17202a;padding:9px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(2px)}
+    .tip{position:absolute;display:none;pointer-events:none;box-sizing:border-box;min-width:230px;max-width:390px;background:rgba(255,255,255,.68);border:1px solid rgba(120,129,145,.42);border-radius:6px;color:#17202a;padding:9px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(2px);overflow-wrap:anywhere;white-space:normal}
   </style>
 </head>
 <body>
@@ -339,7 +419,8 @@ const canvas=document.getElementById("chart");
 const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
 const isEmbed=document.documentElement.classList.contains("is-embed");
-const colors={btc:"#1f77b4",eth:"#A5A5A5",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",ma5:"#2ca02c",ma30:"#d62728",dev300:"#111827",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
+const colors={btc:"#1f77b4",eth:"#A5A5A5",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",ma5:"#2ca02c",ma30:"#d62728",dev300:"#111827",event:"#2563eb",eventSoft:"rgba(37,99,235,.46)",eventBorder:"rgba(147,197,253,.72)",eventFill:"rgba(255,255,255,.78)",eventActiveFill:"rgba(255,255,255,.94)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const series=[
   {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15},
   {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05},
@@ -350,7 +431,7 @@ const series=[
   {key:"ma30",label:"USDT 30D均线",color:colors.ma30,scale:"supply",width:1.05},
   {key:"dev300",label:"300D前均差",color:colors.dev300,scale:"supply",width:.85}
 ];
-let box={},zoom=null,drag=null,legendBoxes=[],hidden={usdc:true,stable:true,ma5:true,ma30:true,dev300:true};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],hidden={usdc:true,stable:true,ma5:true,ma30:true,dev300:true};
 const DAY=86400000,displayEnd=rows[rows.length-1].t+DAY*30;
 const ratioBase={btc:rows.find(r=>r.btc!=null)?.btc,eth:rows.find(r=>r.eth!=null)?.eth};
 function usd(v,d=0){return v==null?"-":"$"+Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})}
@@ -406,7 +487,50 @@ function drawPath(item){
   });
   ctx.strokeStyle=item.color;ctx.lineWidth=item.width;ctx.setLineDash(item.dash||[]);ctx.stroke();ctx.setLineDash([]);
 }
-function draw(active){
+function roundRect(x,y,w,h,r){
+  const rr=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr,y);
+  ctx.lineTo(x+w-rr,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+rr);
+  ctx.lineTo(x+w,y+h-rr);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-rr,y+h);
+  ctx.lineTo(x+rr,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-rr);
+  ctx.lineTo(x,y+rr);
+  ctx.quadraticCurveTo(x,y,x+rr,y);
+}
+function drawEvents(activeEventDate=null){
+  eventBoxes=[];
+  ctx.font="11px Microsoft YaHei,Arial";
+  const lanes=[box.x0-999,box.x0-999,box.x0-999],visible=events.filter(e=>e.t>=box.t0&&e.t<=box.t1).sort((a,b)=>a.t-b.t);
+  visible.forEach(event=>{
+    const active=activeEventDate===event.date;
+    const x=xScale(event.t),pad=7,w=Math.ceil(ctx.measureText(event.label).width+pad*2),h=18;
+    let lane=lanes.findIndex(right=>right<=x-w/2-4);
+    if(lane<0)lane=lanes.indexOf(Math.min(...lanes));
+    const y=box.y1-26-lane*22,left=Math.max(box.x0+2,Math.min(box.x1-w-2,x-w/2));
+    lanes[lane]=left+w;
+    ctx.save();
+    ctx.strokeStyle=active?"rgba(37,99,235,.38)":"rgba(147,197,253,.18)";
+    ctx.lineWidth=.8;
+    ctx.beginPath();
+    ctx.moveTo(x,box.y1);
+    ctx.lineTo(x,y+h);
+    ctx.stroke();
+    ctx.fillStyle=active?colors.eventActiveFill:colors.eventFill;
+    ctx.strokeStyle=active?colors.event:colors.eventBorder;
+    roundRect(left,y,w,h,9);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle=active?colors.event:colors.eventSoft;
+    ctx.textAlign="center";
+    ctx.fillText(event.label,left+w/2,y+12.5);
+    ctx.restore();
+    eventBoxes.push({event,x0:left,y0:y,x1:left+w,y1:y+h});
+  });
+}
+function draw(active,eventDate=null){
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035);
   const axisLeft=76,axisRight=76,titleY=outer+18,legendY=outer+56,xLabelGap=isEmbed?37:54;
   const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+82,y1=h-outer-xLabelGap;
@@ -423,6 +547,7 @@ function draw(active){
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);ctx.restore();
+  drawEvents(eventDate);
   ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("BTC / ETH（起点=1）",0,0);ctx.restore();
   ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText("USDT / USDC / 合计发行量",0,0);ctx.restore();
   if(active!=null){const r=rows[active],x=xScale(r.t);ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.62)";ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);series.forEach(item=>{const v=plotValue(item,r);if(hidden[item.key]||v==null)return;ctx.fillStyle="#fff";ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,yFor(item,v),3.3,0,Math.PI*2);ctx.fill();ctx.stroke()})}
@@ -432,10 +557,21 @@ function pointer(e){const rect=canvas.getBoundingClientRect();return{x:e.clientX
 function inPlot(p){return p.x>=box.x0&&p.x<=box.x1&&p.y>=box.y0&&p.y<=box.y1}
 function timeAtX(x){return box.t0+(clampX(x)-box.x0)/(box.x1-box.x0)*(box.t1-box.t0)}
 function hitLegend(p){return legendBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
+function hitEvent(p){return eventBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function nearest(mx){const t=timeAtX(mx);let l=0,r=rows.length-1;while(l<r){const m=(l+r)>>1;if(rows[m].t<t)l=m+1;else r=m}if(l>0&&Math.abs(rows[l-1].t-t)<Math.abs(rows[l].t-t))l--;return l}
 function drawSelection(){if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1),left=Math.min(x0,x1),width=Math.abs(x1-x0);if(width<3)return;ctx.fillStyle="rgba(111,74,168,.10)";ctx.strokeStyle="rgba(111,74,168,.55)";ctx.lineWidth=1;ctx.fillRect(left,box.y0,width,box.y1-box.y0);ctx.strokeRect(left,box.y0,width,box.y1-box.y0)}
 function showTip(p){
   if(!inPlot(p)){tip.style.display="none";draw();return}
+  const eventHit=hitEvent(p);
+  if(eventHit){
+    const e=eventHit.event;
+    draw(null,e.date);
+    const x=xScale(e.t);
+    ctx.setLineDash([4,5]);ctx.strokeStyle="rgba(37,99,235,.42)";ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);
+    tip.innerHTML=`<b>${e.label}</b><br>时间：${e.dateLabel}<br>类型：${e.type}<br>${e.description}`;
+    tip.style.display="block";tip.style.left=Math.min(p.rect.width-310,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-190,p.y-92))+"px";
+    return;
+  }
   const i=nearest(p.x),r=rows[i];draw(i);
   const lines=series.filter(item=>!hidden[item.key]).map(item=>`${item.label}：${valueText(item,r)}`);
   tip.innerHTML=`<b>${r.date}</b><br>${lines.join("<br>")}`;
