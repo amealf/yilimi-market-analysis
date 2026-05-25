@@ -16,14 +16,170 @@ START_DATE = date(2000, 1, 1)
 END_DATE = date.today()
 DISPLAY_START = pd.Timestamp("2018-01-01")
 BAR_COUNT = 7000
-OIL_EVENTS: list[dict[str, str]] = []
-MARKETS = [
+OIL_EVENTS: list[dict[str, str]] = [
     {
-        "key": "wti",
-        "label": "CME WTI",
-        "symbol": "NYMEX:CL1!",
-        "source": "TradingView / NYMEX:CL1!",
+        "date": "2026-02-28",
+        "dateLabel": "2026-02-28 16:00 UTC",
+        "label": "战争定价",
+        "type": "供应冲击",
+        "description": "美以打击伊朗，伊朗报复。路透在16:08 UTC报道，联合打击和伊朗对海湾的报复性导弹袭击已经扰乱全球关键产区的出口预期；中东约占全球油气供应的20%，航运和保险风险开始被重新定价。",
     },
+    {
+        "date": "2026-03-10",
+        "dateLabel": "2026-03-10 03:00 UTC",
+        "label": "降温交易",
+        "type": "停火预期",
+        "description": "川普称战争可能很快结束。虽然当天是开战以来猛烈打击之一，伊朗革命卫队还威胁阻断海湾石油出口，但川普称战争「非常完整，差不多了」，投资者押注他会尽快结束战争。",
+    },
+    {
+        "date": "2026-03-23",
+        "dateLabel": "2026-03-23 11:00 UTC",
+        "label": "推迟攻击",
+        "type": "能源设施风险降温",
+        "description": "川普发帖推迟攻击伊朗能源基础设施。他在11:05 UTC于Truth Social表示，将推迟对伊朗能源基础设施的攻击，并暗示华盛顿和德黑兰仍有建设性谈判。",
+    },
+    {
+        "date": "2026-04-02",
+        "dateLabel": "2026-04-02 00:00 UTC",
+        "label": "继续重击",
+        "type": "战争升级",
+        "description": "川普讲话没有宣布结束战争，反而威胁继续重击伊朗。他在4月1日晚讲话中没有给出结束战争时间表，称未来两三周会对伊朗「极其严厉」打击；伊朗外长Araqchi回应称，打击民用结构不会迫使伊朗投降。",
+    },
+    {
+        "date": "2026-04-07",
+        "dateLabel": "2026-04-07 23:00 UTC",
+        "label": "两周停火",
+        "type": "停火",
+        "description": "川普宣布与伊朗两周停火。伊朗表示只要攻击停止，霍尔木兹海峡可在两周内开放，川普称伊朗提交了10点和平方案。",
+    },
+    {
+        "date": "2026-04-17",
+        "dateLabel": "2026-04-17 02:00 UTC",
+        "label": "霍尔木兹开放",
+        "type": "通航恢复",
+        "description": "伊朗外长称霍尔木兹在停火期间对商船开放；川普称预计很快达成结束战争协议。伊朗外长Abbas Araqchi在X上称，商船可在以黎停火剩余时间内通过霍尔木兹；川普又称美国会与伊朗合作处理浓缩铀问题，并预计很快达成结束战争协议。",
+    },
+    {
+        "date": "2026-04-20",
+        "dateLabel": "2026-04-20 22:00 UTC",
+        "label": "扣押货船",
+        "type": "复燃风险",
+        "description": "美国扣押伊朗货船，伊朗称会报复。美国扣押一艘试图突破封锁的伊朗货船，伊朗称将报复；此前由开放海峡带来的市场乐观迅速消退。",
+    },
+    {
+        "date": "2026-04-21",
+        "dateLabel": "2026-04-21 20:00 UTC",
+        "label": "延长停火",
+        "type": "停火延长",
+        "description": "川普宣布无限期延长停火。他在20:10 UTC称会无限期延长与伊朗的停火；此前19:54-19:56 UTC出现约4.3亿美元做空原油的交易。",
+    },
+    {
+        "date": "2026-04-29",
+        "dateLabel": "2026-04-29 10:00 UTC",
+        "label": "重开霍尔木兹",
+        "type": "通航与打击风险",
+        "description": "美国寻求国际联盟重开霍尔木兹，川普敦促伊朗签「非核协议」。美国国务院电报显示，华盛顿希望组建国际联盟恢复霍尔木兹航行自由；同时有报道称川普将听取新一轮打击伊朗方案简报。",
+    },
+    {
+        "date": "2026-04-30",
+        "dateLabel": "2026-04-30 01:00 UTC",
+        "label": "四年高位",
+        "type": "战争升级担忧",
+        "description": "战争升级担忧推动Brent触及四年高位，随后大幅回落。有报道称美国考虑通过一系列打击迫使伊朗回到谈判桌；当天价格随后在没有清晰单一催化的情况下回落，显示战时行情波动极高。",
+    },
+    {
+        "date": "2026-05-04",
+        "dateLabel": "2026-05-04 22:00 UTC",
+        "label": "袭击油港",
+        "type": "海湾袭击",
+        "description": "伊朗袭击阿联酋油港和霍尔木兹附近船只。伊朗在过去24小时内攻击海湾船只，并导致阿联酋油气工业区起火；美国海军拦截伊朗导弹和无人机。",
+    },
+    {
+        "date": "2026-05-05",
+        "dateLabel": "2026-05-05 22:00 UTC",
+        "label": "护航通行",
+        "type": "脆弱停火",
+        "description": "两艘船通过霍尔木兹，美国称脆弱停火仍在。美国称已有两艘商船在海军护航下通过海峡，同时称停火仍有效；伊朗否认部分通航说法。",
+    },
+    {
+        "date": "2026-05-06",
+        "dateLabel": "2026-05-06 23:00 UTC",
+        "label": "初步和平",
+        "type": "谈判进展",
+        "description": "美伊接近初步和平协议的报道出现，伊朗称正在审查美国方案。巴基斯坦调停方称美伊接近就一页备忘录达成一致；伊朗称会通过巴基斯坦尽快回复新美国方案。",
+    },
+    {
+        "date": "2026-05-08",
+        "dateLabel": "2026-05-08 00:00 UTC",
+        "label": "再度交火",
+        "type": "停火压力",
+        "description": "美伊再度交火，但川普淡化冲突并称停火仍有效。美国和伊朗互相空袭后，川普称停火仍然有效；交易员同时权衡谈判突破和复战风险。",
+    },
+    {
+        "date": "2026-05-10",
+        "dateLabel": "2026-05-10 22:00 UTC",
+        "label": "生命维持",
+        "type": "谈判受挫",
+        "description": "川普称停火处于「生命维持状态」并否决伊朗回应。伊朗要求赔偿、解除美国封锁、恢复石油销售、解除制裁并确认其对霍尔木兹的主权；川普称伊朗回应「完全不可接受」。",
+    },
+    {
+        "date": "2026-05-12",
+        "dateLabel": "2026-05-12 22:00 UTC",
+        "label": "分歧扩大",
+        "type": "供应假设延长",
+        "description": "美伊分歧扩大，EIA假设霍尔木兹关闭持续到5月底。报道称美伊围绕结束战争提案存在明显分歧；EIA将霍尔木兹有效关闭的假设从4月底延长到5月底。",
+    },
+    {
+        "date": "2026-05-15",
+        "dateLabel": "2026-05-15 01:00 UTC",
+        "label": "耐心耗尽",
+        "type": "复战风险",
+        "description": "川普称对伊朗耐心耗尽，伊朗外长称准备恢复战斗。川普表示对伊朗「耐心耗尽」；伊朗外长Araqchi称伊朗对美国「没有信任」，既准备外交解决，也准备回到战斗状态。",
+    },
+    {
+        "date": "2026-05-18",
+        "dateLabel": "2026-05-18 22:00 UTC",
+        "label": "推迟攻击",
+        "type": "供应担忧",
+        "description": "供应担忧压过制裁豁免消息，盘后又因川普推迟攻击而回吐。市场担心霍尔木兹近乎关闭导致库存快速消耗；盘后川普称会暂缓原定周二对伊朗的攻击。",
+    },
+    {
+        "date": "2026-05-20",
+        "dateLabel": "2026-05-20 01:00 UTC",
+        "label": "最后阶段",
+        "type": "谈判窗口",
+        "description": "川普称谈判进入「最后阶段」，同时警告伊朗不接受就继续打。川普称谈判处于「最后阶段」，但也威胁继续攻击；伊朗外交部发言人Baghaei称，伊朗准备与沿岸国家制定安全航运协议。",
+    },
+    {
+        "date": "2026-05-22",
+        "dateLabel": "2026-05-22 22:00 UTC",
+        "label": "仍未到点",
+        "type": "谈判拉锯",
+        "description": "Rubio称谈判有进展但「还没到」。Rubio称有进展，但仍有工作要做；美伊仍在浓缩铀库存和霍尔木兹控制权上对立。",
+    },
+    {
+        "date": "2026-05-23",
+        "dateLabel": "2026-05-23 14:00 UTC",
+        "label": "基本谈妥",
+        "type": "周末和平消息",
+        "description": "川普称和平备忘录「基本谈妥」，伊朗媒体随后称该说法「与现实不符」。川普发帖称协议备忘录已「largely negotiated」，并称协议会包括重开霍尔木兹；伊朗Fars随后报道，协议会让伊朗管理海峡，并称川普所谓协议接近完成「inconsistent with reality」。",
+    },
+    {
+        "date": "2026-05-24",
+        "dateLabel": "2026-05-24 02:00 UTC",
+        "label": "不急签约",
+        "type": "周末谈判降温",
+        "description": "川普改称不急着达成协议，美国封锁维持。川普称已要求谈判代表不要急于与伊朗达成协议，并称美国对伊朗船只的封锁会保持，直到协议达成、认证并签署；Tasnim称美国仍阻碍冻结资金释放等事项。",
+    },
+    {
+        "date": "2026-05-25",
+        "dateLabel": "2026-05-25 00:00 UTC",
+        "label": "风险偏好",
+        "type": "协议希望扩散",
+        "description": "协议希望扩散到外汇、股市和航运。霍尔木兹重开希望带动风险偏好；同日两艘LNG船和一艘装载伊拉克Basrah原油的VLCC离开海湾，显示部分通航恢复。",
+    },
+]
+MARKETS = [
     {
         "key": "brent",
         "label": "ICE Brent",
@@ -127,9 +283,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
         records.append(
             {
                 "date": row.date.strftime("%Y-%m-%d"),
-                "wti": series_value(row.wti_close, 4),
                 "brent": series_value(row.brent_close, 4),
-                "wtiDaily": series_value(row.wti_close_daily_pct, 4),
                 "brentDaily": series_value(row.brent_close_daily_pct, 4),
             }
         )
@@ -140,7 +294,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
             "meta": meta,
             "events": OIL_EVENTS,
             "generatedAt": generated_at,
-            "dataSources": "TradingView、NYMEX、ICE Futures Europe",
+            "dataSources": "TradingView、ICE Futures Europe",
         },
         ensure_ascii=False,
         separators=(",", ":"),
@@ -152,7 +306,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script>if(new URLSearchParams(location.search).get("embed")==="1")document.documentElement.classList.add("is-embed");</script>
-  <title>WTI / Brent 原油价格走势</title>
+  <title>Brent 原油价格走势</title>
   <style>
     html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff;color:#17202a;font-family:"Microsoft YaHei",Arial,sans-serif}
     .page{position:relative;width:100vw;height:100vh;background:#fff}
@@ -174,10 +328,9 @@ const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={wti:"#1f77b4",brent:"#ED7D31",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071",weekend:"rgba(148,163,184,.055)"};
+const colors={brent:"#ED7D31",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071",weekend:"rgba(148,163,184,.055)"};
 const series=[
-  {key:"wti",label:"CME WTI",color:colors.wti,width:1.15},
-  {key:"brent",label:"ICE Brent",color:colors.brent,width:1.05}
+  {key:"brent",label:"ICE Brent",color:colors.brent,width:1.15}
 ];
 const periodNames={day:"日",week:"周",month:"月"};
 let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="week",hoverPeriod=null,hidden={};
@@ -190,17 +343,18 @@ function groupedRows(mode){
   if(mode==="day")return rawRows.map(cloneRow);
   const map=new Map(),keyFn=mode==="week"?weekKey:monthKey;
   rawRows.forEach(r=>{if(hasPrice(r))map.set(keyFn(r.t),cloneRow(r))});
-  return Array.from(map.values()).sort((a,b)=>a.t-b.t).map((r,i,a)=>({...r,wtiDaily:i&&a[i-1].wti&&r.wti!=null?(r.wti/a[i-1].wti-1)*100:null,brentDaily:i&&a[i-1].brent&&r.brent!=null?(r.brent/a[i-1].brent-1)*100:null}));
+  return Array.from(map.values()).sort((a,b)=>a.t-b.t).map((r,i,a)=>({...r,brentDaily:i&&a[i-1].brent&&r.brent!=null?(r.brent/a[i-1].brent-1)*100:null}));
 }
 let rows=groupedRows(period);
 function refreshRows(){rows=groupedRows(period)}
 function displayEnd(){return rows[rows.length-1].t+DAY*30}
+function defaultRange(){return events.length?[Math.max(rows[0].t,events[0].t-DAY*14),displayEnd()]:[rows[0].t,displayEnd()]}
 function usd(v,d=2){return v==null?"-":"$"+Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})}
 function signedPct(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"")+n.toFixed(2)+"%"}
-function valueText(item,r){const daily=item.key==="wti"?r.wtiDaily:r.brentDaily;return r[item.key]==null?"-":usd(r[item.key])+"，"+signedPct(daily)}
+function valueText(item,r){return r[item.key]==null?"-":usd(r[item.key])+"，"+signedPct(r.brentDaily)}
 function extent(keys,list=rows){const a=keys.flatMap(k=>list.map(r=>r[k]).filter(v=>v!=null&&Number.isFinite(v)));return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
-function activeKeys(){const keys=series.filter(s=>!hidden[s.key]).map(s=>s.key);return keys.length?keys:["wti","brent"]}
-function currentRange(){return zoom||[rows[0].t,displayEnd()]}
+function activeKeys(){const keys=series.filter(s=>!hidden[s.key]).map(s=>s.key);return keys.length?keys:["brent"]}
+function currentRange(){return zoom||defaultRange()}
 function visibleRows(){const [t0,t1]=currentRange();const sample=rows.filter(r=>r.t>=t0&&r.t<=t1);return sample.length?sample:rows}
 function resize(){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
 function xScale(t){return box.x0+(t-box.t0)/(box.t1-box.t0)*(box.x1-box.x0)}
@@ -214,7 +368,23 @@ function hitPeriod(p){return periodBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0
 function drawAxes(){niceTicks(box.priceMin,box.priceMax,7).forEach(v=>{const y=yPrice(v);gridLine(y);ctx.fillStyle=colors.text;ctx.textAlign="right";ctx.fillText(usd(v,0),box.x0-9,y+4)})}
 function drawWeekends(){if(period!=="day")return;const start=new Date(box.t0);start.setUTCHours(0,0,0,0);for(let t=start.getTime();t<=box.t1;t+=DAY){const d=new Date(t).getUTCDay();if(d!==6&&d!==0)continue;const x0=xScale(t),x1=xScale(t+DAY);ctx.fillStyle=colors.weekend;ctx.fillRect(x0,box.y0,Math.max(1,x1-x0),box.y1-box.y0)}}
 function drawPath(item){if(hidden[item.key])return;ctx.beginPath();let open=false;rows.forEach(r=>{const v=r[item.key];if(v==null||!Number.isFinite(v)){open=false;return}const x=xScale(r.t),y=yPrice(v);if(!open){ctx.moveTo(x,y);open=true}else ctx.lineTo(x,y)});ctx.strokeStyle=item.color;ctx.lineWidth=item.width;ctx.stroke()}
-function drawEvents(activeEventDate=null){eventBoxes=[];ctx.font="11px Microsoft YaHei,Arial";const lanes=[box.x0-999,box.x0-999,box.x0-999],visible=events.filter(e=>e.t>=box.t0&&e.t<=box.t1).sort((a,b)=>a.t-b.t);visible.forEach(event=>{const active=activeEventDate===event.date,x=xScale(event.t),pad=7,w=Math.ceil(ctx.measureText(event.label).width+pad*2),h=18;let lane=lanes.findIndex(right=>right<=x-w/2-4);if(lane<0)lane=lanes.indexOf(Math.min(...lanes));const y=box.y1-26-lane*22,left=Math.max(box.x0+2,Math.min(box.x1-w-2,x-w/2));lanes[lane]=left+w;ctx.save();ctx.strokeStyle=active?"rgba(37,99,235,.38)":"rgba(147,197,253,.18)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x,box.y1);ctx.lineTo(x,y+h);ctx.stroke();ctx.fillStyle=active?colors.eventActiveFill:colors.eventFill;ctx.strokeStyle=active?colors.event:colors.eventBorder;roundRect(left,y,w,h,9);ctx.fill();ctx.stroke();ctx.fillStyle=active?colors.eventTextActive:colors.eventText;ctx.textAlign="center";ctx.fillText(event.label,left+w/2,y+12.5);ctx.restore();eventBoxes.push({event,x0:left,y0:y,x1:left+w,y1:y+h})})}
+function drawEvents(activeEventDate=null){
+  eventBoxes=[];
+  const laneCount=4,visible=events.filter(e=>e.t>=box.t0&&e.t<=box.t1).sort((a,b)=>a.t-b.t);
+  visible.forEach((event,index)=>{
+    const active=activeEventDate===event.date,x=xScale(event.t),lane=index%laneCount,y=box.y1-14-lane*14,r=active?4.8:3.8;
+    ctx.save();
+    ctx.strokeStyle=active?"rgba(37,99,235,.42)":"rgba(147,197,253,.22)";
+    ctx.lineWidth=active?1.1:.8;
+    ctx.beginPath();ctx.moveTo(x,box.y1);ctx.lineTo(x,y-r-2);ctx.stroke();
+    ctx.fillStyle=active?"rgba(37,99,235,.95)":"rgba(37,99,235,.62)";
+    ctx.strokeStyle="rgba(255,255,255,.88)";
+    ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.restore();
+    eventBoxes.push({event,x0:x-8,y0:y-8,x1:x+8,y1:y+8});
+  });
+}
 function draw(active,eventDate=null){
   refreshRows();
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035);
@@ -224,7 +394,7 @@ function draw(active,eventDate=null){
   box={x0,x1,y0,y1,t0,t1,priceMin:min0-pad,priceMax:max0+pad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   const titleSize=isEmbed&&w<760?18:21,tabY=isEmbed&&w<760?legendY-14:titleY-15;
-  ctx.fillStyle=colors.text;ctx.font=`700 ${titleSize}px Microsoft YaHei,Arial`;ctx.textAlign="center";ctx.fillText("WTI / Brent 原油价格走势",w/2,titleY);
+  ctx.fillStyle=colors.text;ctx.font=`700 ${titleSize}px Microsoft YaHei,Arial`;ctx.textAlign="center";ctx.fillText("Brent 原油价格走势",w/2,titleY);
   drawLegend(x0,legendY,x1);drawPeriodTabs(x1-112,tabY);
   drawWeekends();
   const startY=new Date(box.t0).getUTCFullYear(),endY=new Date(box.t1).getUTCFullYear();

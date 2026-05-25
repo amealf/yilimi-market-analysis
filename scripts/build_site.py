@@ -16,11 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "scripts"
 SITE_DIR = ROOT / "site"
 CONFIG_PATH = ROOT / "charts.yml"
-DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、KOFIA FreeSIS、Yahoo Finance、Naver Finance、CNBC、TradingView、NYMEX、ICE、CSV"
+DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、KOFIA FreeSIS、Yahoo Finance、Naver Finance、CNBC、TradingView、ICE、CSV"
 CATEGORY_SOURCES = {
     "a-share-margin": "东方财富、新浪财经",
     "crypto-liquidity": "CryptoCompare、DefiLlama",
-    "other-markets": "KOFIA FreeSIS、Yahoo Finance、Naver Finance、TradingView、NYMEX、ICE",
+    "other-markets": "KOFIA FreeSIS、Yahoo Finance、Naver Finance、TradingView、ICE",
     "global-rates": "CNBC、TradingView",
 }
 
