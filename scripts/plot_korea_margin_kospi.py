@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
@@ -9,7 +10,7 @@ from html import unescape
 from http.client import IncompleteRead, RemoteDisconnected
 from pathlib import Path
 from urllib.error import URLError
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 import pandas as pd
@@ -18,7 +19,10 @@ import pandas as pd
 START_DATE = "2014-01-01"
 KOFIA_DATA = "https://freesis.kofia.or.kr/meta/getMetaDataList.do"
 NAVER_INVESTOR_TREND = "https://finance.naver.com/sise/investorDealTrendDay.naver"
-YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/%5EKS11"
+YAHOO_CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart"
+KOSPI_YAHOO_SYMBOL = "^KS11"
+USDKRW_YAHOO_SYMBOL = "KRW=X"
+KOREA_10Y_TRADINGVIEW_SYMBOL = "TVC:KR10Y"
 OUT_DIR = Path(__file__).resolve().parent
 
 
@@ -214,7 +218,7 @@ def fetch_credit_financing_balance() -> pd.DataFrame:
     )
 
 
-def fetch_kospi() -> pd.DataFrame:
+def fetch_yahoo_close(symbol: str, column: str, label: str) -> pd.DataFrame:
     start_ts = int(datetime.strptime(START_DATE, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
     end_ts = int((datetime.now(timezone.utc) + timedelta(days=2)).timestamp())
     params = urlencode(
@@ -226,7 +230,7 @@ def fetch_kospi() -> pd.DataFrame:
         }
     )
     req = Request(
-        f"{YAHOO_CHART}?{params}",
+        f"{YAHOO_CHART_BASE}/{quote(symbol, safe='')}?{params}",
         headers={
             "Accept": "application/json,text/plain,*/*",
             "User-Agent": (
@@ -239,15 +243,15 @@ def fetch_kospi() -> pd.DataFrame:
     payload = fetch_json(req)
     error = (payload.get("chart") or {}).get("error")
     if error:
-        raise RuntimeError(f"Yahoo Finance KOSPI 接口返回错误：{error}")
+        raise RuntimeError(f"Yahoo Finance {label} 接口返回错误：{error}")
 
     result = ((payload.get("chart") or {}).get("result") or [None])[0]
     if not result:
-        raise RuntimeError("Yahoo Finance KOSPI 接口没有返回数据")
+        raise RuntimeError(f"Yahoo Finance {label} 接口没有返回数据")
 
     timestamps = result.get("timestamp") or []
-    quote = (((result.get("indicators") or {}).get("quote") or [None])[0]) or {}
-    closes = quote.get("close") or []
+    quote_data = (((result.get("indicators") or {}).get("quote") or [None])[0]) or {}
+    closes = quote_data.get("close") or []
     records = []
     for timestamp, close in zip(timestamps, closes):
         if close is None:
@@ -255,23 +259,54 @@ def fetch_kospi() -> pd.DataFrame:
         records.append(
             {
                 "date": datetime.fromtimestamp(int(timestamp), timezone.utc).date(),
-                "kospi_close": float(close),
+                column: float(close),
             }
         )
     if not records:
-        raise RuntimeError("Yahoo Finance KOSPI 接口没有可用收盘价")
+        raise RuntimeError(f"Yahoo Finance {label} 接口没有可用收盘价")
 
     return pd.DataFrame(records).drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
 
 
+def fetch_kospi() -> pd.DataFrame:
+    return fetch_yahoo_close(KOSPI_YAHOO_SYMBOL, "kospi_close", "KOSPI")
+
+
+def fetch_usdkrw() -> pd.DataFrame:
+    return fetch_yahoo_close(USDKRW_YAHOO_SYMBOL, "usdkrw", "USD/KRW")
+
+
+def fetch_korea_10y_yield() -> pd.DataFrame:
+    root_dir = Path(__file__).resolve().parents[1]
+    if str(root_dir) not in sys.path:
+        sys.path.insert(0, str(root_dir))
+    from global_30y_bond_daily.providers import tradingview_provider
+
+    raw = tradingview_provider.fetch(
+        {"symbol": KOREA_10Y_TRADINGVIEW_SYMBOL, "label": "韩国10年国债收益率"},
+        {"history": {"bar_count": 5000}},
+    )
+    if raw.empty:
+        raise RuntimeError("TradingView 韩国10年国债收益率接口没有返回数据")
+    frame = raw[["date", "close"]].rename(columns={"close": "korea_10y_yield"}).copy()
+    frame["date"] = pd.to_datetime(frame["date"], errors="coerce").dt.date
+    return frame.dropna(subset=["date", "korea_10y_yield"]).sort_values("date").reset_index(drop=True)
+
+
 def add_index_ratios(data: pd.DataFrame) -> pd.DataFrame:
     data = data.copy()
-    valid = data["kospi_close"].dropna()
-    if valid.empty:
-        data["kospi_ratio"] = pd.NA
-    else:
-        base = float(valid.iloc[0])
-        data["kospi_ratio"] = data["kospi_close"] / base * 100
+
+    def add_ratio(value_column: str, ratio_column: str) -> None:
+        valid = data[value_column].dropna()
+        if valid.empty:
+            data[ratio_column] = pd.NA
+        else:
+            base = float(valid.iloc[0])
+            data[ratio_column] = data[value_column] / base * 100
+
+    add_ratio("kospi_close", "kospi_ratio")
+    add_ratio("korea_10y_yield", "korea_10y_yield_ratio")
+    add_ratio("usdkrw", "usdkrw_ratio")
     data["foreign_net_buy_cumulative_trillion_krw"] = (
         data["foreign_net_buy_trillion_krw"].fillna(0).cumsum()
     )
@@ -295,7 +330,12 @@ def chart_meta(data: pd.DataFrame) -> dict:
     latest_financing = financing.iloc[-1]
     latest_kospi = kospi.iloc[-1]
     latest_foreign = data.dropna(subset=["foreign_net_buy_100m_krw"]).iloc[-1]
-    updated_at = max(latest_financing["date"], latest_kospi["date"], latest_foreign["date"])
+    latest_dates = [latest_financing["date"], latest_kospi["date"], latest_foreign["date"]]
+    for column in ["korea_10y_yield", "usdkrw"]:
+        latest_optional = data.dropna(subset=[column])
+        if not latest_optional.empty:
+            latest_dates.append(latest_optional.iloc[-1]["date"])
+    updated_at = max(latest_dates)
 
     def nearest_value(date_value: date, column: str, digits: int) -> float | None:
         values = data[(data["date"] <= date_value) & data[column].notna()]
@@ -348,6 +388,10 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
                 value_or_none(row["kospi_ratio"], 4),
                 value_or_none(row["foreign_net_buy_100m_krw"], 2),
                 value_or_none(row["foreign_net_buy_cumulative_trillion_krw"], 6),
+                value_or_none(row["korea_10y_yield"], 4),
+                value_or_none(row["korea_10y_yield_ratio"], 4),
+                value_or_none(row["usdkrw"], 4),
+                value_or_none(row["usdkrw_ratio"], 4),
             ]
         )
 
@@ -364,7 +408,7 @@ const P=__PAYLOAD__;const rows=P.data.map(d=>({t:new Date(d[0]).getTime(),date:d
 """
     html = """
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KOSPI & Cash flow</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f4f6f8;color:#111827;font-family:"Microsoft YaHei",Arial,sans-serif}.page{position:relative;width:100vw;height:100vh;background:#fff}canvas{display:block;width:100vw;height:100vh}.tip{position:absolute;display:none;pointer-events:none;background:rgba(17,24,39,.93);color:#fff;border-radius:6px;padding:8px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(0,0,0,.2);white-space:nowrap}.home-link{position:absolute;left:14px;top:14px;z-index:2;width:32px;height:32px;border:1px solid rgba(120,129,145,.34);border-radius:6px;display:flex;align-items:center;justify-content:center;color:#526071;background:rgba(255,255,255,.72);box-shadow:0 6px 18px rgba(15,23,42,.08);backdrop-filter:blur(2px)}.is-embed .home-link{display:none}.home-link:hover{color:#17202a;background:rgba(255,255,255,.94)}.home-link svg{width:18px;height:18px;stroke:currentColor}</style><script>if(new URLSearchParams(location.search).get("embed")==="1")document.documentElement.classList.add("is-embed");</script></head><body><div class="page"><a class="home-link" href="../../index.html" aria-label="返回主页" title="返回主页"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></a><canvas id="chart"></canvas><div class="tip" id="tip"></div></div><script>
-const P=__PAYLOAD__;const rows=P.data.map((d,i)=>({i,date:d[0],f:d[1],k:d[2],kr:d[3],nf:d[4],fc:d[5]}));const meta=P.meta,canvas=document.getElementById("chart"),ctx=canvas.getContext("2d"),tip=document.getElementById("tip");const colors={f:"#e56b2f",kr:"#0086b0",nf:"#16a34a",fc:"#0f766e",nfDown:"#dc2626",peak:"#7bb8f8"};let box={},legendHits=[],visible={f:true,kr:true,nf:true,peak:true,notes:new URLSearchParams(location.search).get("notes")!=="0"},view=null,drag=null,selection=null,xScale,yLeft,yRight,plotRows=rows;function fmt(v,d=2){return v==null?"-":Number(v).toFixed(d)}function amountLine(v){return v==null?"":`\\n融资 ${fmt(v,3)}万亿韩元`}function kospiLine(v){return v==null?"":`\\nKOSPI ${fmt(v,2)}点`}function foreignCumLine(v){return v==null?"":`\\n外资累计 ${fmt(v,2)}万亿韩元`}function dataDomain(){const a=0,b=rows.length-1,pad=Math.max(1,(b-a)*.045);return[a-pad,b+pad]}function values(k,source=plotRows){return source.map(r=>r[k]).filter(v=>v!=null&&Number.isFinite(v))}function extent(keys,source=plotRows){const a=keys.flatMap(k=>values(k,source));return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}function niceTicks(min,max,n){const span=Math.max(1e-9,max-min),raw=span/Math.max(1,n),pow=Math.pow(10,Math.floor(Math.log10(raw))),base=[1,2,5,10].find(x=>x*pow>=raw)*pow,start=Math.ceil(min/base)*base,out=[];for(let v=start;v<=max+base*.5;v+=base)out.push(v);return out}function resize(){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw()}function rowByDate(date){return rows.find(r=>r.date===date)}function textBox(text,x,y,align="left"){const lines=text.split("\\n"),padX=12,padY=5,lh=16,extra=18,w=Math.max(...lines.map(s=>ctx.measureText(s).width))+padX*2+extra,h=lines.length*lh+padY*2;let bx=align==="right"?x-w:x;ctx.save();ctx.shadowColor="rgba(15,23,42,.16)";ctx.shadowBlur=18;ctx.shadowOffsetY=8;ctx.fillStyle="rgba(255,255,255,.42)";ctx.strokeStyle="rgba(255,255,255,.76)";ctx.lineWidth=.9;ctx.beginPath();ctx.roundRect(bx,y,w,h,8);ctx.fill();ctx.shadowBlur=0;ctx.stroke();ctx.restore();ctx.fillStyle="rgba(15,23,42,.94)";ctx.textAlign="left";lines.forEach((s,i)=>ctx.fillText(s,bx+padX,y+padY+12+i*lh))}function inRange(date){const r=rowByDate(date);return r&&r.i>=box.imin&&r.i<=box.imax}function drawLabel(p,text,dx,dy,color,side){if(!visible.notes||!inRange(p.date))return;const r=rowByDate(p.date),x=xScale(r.i),y=side==="left"?yLeft(p.value):yRight(p.value);ctx.strokeStyle="#64748b";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+dx,y+dy);ctx.stroke();ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();textBox(text,x+dx+(dx<0?-6:6),y+dy-20,dx<0?"right":"left")}function drawForeignBars(x0,x1,y0,y1){if(!visible.nf)return;const nums=values("nf");if(!nums.length)return;const maxAbs=Math.max(...nums.map(v=>Math.abs(v)));if(!maxAbs)return;const zero=y0-(y0-y1)*.17,band=(y0-y1)*.13,step=Math.abs(xScale(Math.min(box.imax,box.imin+1))-xScale(box.imin))||1,bw=Math.max(1,Math.min(5,step*.72));ctx.strokeStyle="rgba(71,85,105,.38)";ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(x0,zero);ctx.lineTo(x1,zero);ctx.stroke();for(const r of rows){if(r.i<box.imin||r.i>box.imax||r.nf==null)continue;const x=xScale(r.i),y=zero-(r.nf/maxAbs)*band;ctx.fillStyle=r.nf>=0?"rgba(22,163,74,.34)":"rgba(220,38,38,.30)";ctx.fillRect(x-bw/2,Math.min(y,zero),bw,Math.max(1,Math.abs(y-zero)))}ctx.fillStyle="#64748b";ctx.textAlign="left";ctx.font="12px Microsoft YaHei,Arial";ctx.fillText("外资净买入（亿韩元）",x0+8,zero-6)}function draw(active){const w=canvas.clientWidth,h=canvas.clientHeight,p={l:96,r:106,t:98,b:76},x0=p.l,x1=w-p.r,y0=h-p.b,y1=p.t,[fullMin,fullMax]=dataDomain(),imin=view?view[0]:fullMin,imax=view?view[1]:fullMax;plotRows=rows.filter(r=>r.i>=imin&&r.i<=imax);if(!plotRows.length)plotRows=rows;ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);ctx.font="12px Microsoft YaHei,Arial";const [fMin0,fMax0]=extent(["f"]),[rMin0,rMax0]=extent(["kr"]);const fPad=Math.max(.1,(fMax0-fMin0)*.06),fMin=Math.min(0,fMin0-fPad),fMax=Math.max(fMax0,meta.oldPeak,meta.newHigh)+fPad,rMin=Math.max(0,rMin0*.9),rMax=rMax0*1.08;box={x0,x1,y0,y1,imin,imax,fMin,fMax,rMin,rMax};xScale=i=>x0+(i-imin)/(imax-imin)*(x1-x0);yLeft=v=>y0-(v-fMin)/(fMax-fMin)*(y0-y1);yRight=v=>y0-(v-rMin)/(rMax-rMin)*(y0-y1);ctx.fillStyle="#9ca3af";ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText("Made by Yilimi",x0,32);ctx.fillStyle="#111827";ctx.font="700 22px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText("KOSPI & Cash flow",w/2,32);drawLegend(x0,58);ctx.font="12px Microsoft YaHei,Arial";ctx.lineWidth=.6;niceTicks(fMin,fMax,6).forEach(v=>{const y=yLeft(v);ctx.strokeStyle="#e5e7eb";ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();ctx.fillStyle=colors.f;ctx.textAlign="right";ctx.fillText(v.toFixed(1),x0-9,y+4)});niceTicks(rMin,rMax,6).forEach(v=>{const y=yRight(v);ctx.fillStyle="#111";ctx.textAlign="left";ctx.fillText(Math.round(v),x1+9,y+4)});let seenYear=null;for(const r of rows){if(r.i<imin||r.i>imax)continue;const year=r.date.slice(0,4);if(year===seenYear)continue;seenYear=year;const x=xScale(r.i);ctx.strokeStyle="#eef2f7";ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,y0);ctx.stroke();ctx.fillStyle="#4b5563";ctx.textAlign="center";ctx.fillText(year,x,y0+24)}ctx.strokeStyle="#111827";ctx.lineWidth=1;ctx.strokeRect(x0,y1,x1-x0,y0-y1);drawForeignBars(x0,x1,y0,y1);function path(key,color,width,scale){if(!visible[key])return;ctx.beginPath();let open=false;for(const r of rows){const v=r[key];if(v==null||r.i<imin||r.i>imax){open=false;continue}const x=xScale(r.i),y=scale(v);if(!open){ctx.moveTo(x,y);open=true}else ctx.lineTo(x,y)}ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke()}path("f",colors.f,1.18,yLeft);path("kr",colors.kr,1.0,yRight);if(visible.peak){const py=yLeft(meta.oldPeak);ctx.setLineDash([6,4]);ctx.strokeStyle=colors.peak;ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x0,py);ctx.lineTo(x1,py);ctx.stroke();ctx.setLineDash([])}ctx.save();ctx.translate(22,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillStyle=colors.f;ctx.textAlign="center";ctx.fillText("融资余额（万亿韩元）",0,0);ctx.restore();ctx.save();ctx.translate(w-24,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle="#111";ctx.textAlign="center";ctx.fillText("KOSPI 相对值（2014-01=100）",0,0);ctx.restore();if(visible.f&&visible.peak)drawLabel({date:meta.oldPeakDate,value:meta.oldPeak},`融资旧高\\n${meta.oldPeakDate}\\n融资 ${fmt(meta.oldPeak,3)}万亿韩元${kospiLine(meta.oldPeakKospi)}`,34,30,colors.f,"left");if(visible.f&&meta.newHighDate!==meta.oldPeakDate)drawLabel({date:meta.newHighDate,value:meta.newHigh},`融资突破旧高\\n${meta.newHighDate}\\n融资 ${fmt(meta.newHigh,3)}万亿韩元${kospiLine(meta.newHighKospi)}`,-34,-54,colors.f,"left");[["2020-03-19",34,-62],["2025-04-09",-34,46]].forEach(([date,dx,dy])=>{const r=rowByDate(date);if(r&&visible.kr)drawLabel({date:date,value:r.kr},`牛市起点\\n${date}${kospiLine(r.k)}${amountLine(r.f)}`,dx,dy,colors.kr,"right")});ctx.fillStyle="#4b5563";ctx.textAlign="left";ctx.font="12px Microsoft YaHei,Arial";if(new URLSearchParams(location.search).get("embed")!=="1")ctx.fillText(`更新时间：${meta.updatedAt}；数据源：KOFIA FreeSIS、Yahoo Finance、Naver Finance。`,x0,y0+64);if(active!=null){const r=rows[active],x=xScale(r.i);ctx.strokeStyle="rgba(31,41,55,.42)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,y0);ctx.stroke();[[r.f,yLeft,colors.f,"f"],[r.kr,yRight,colors.kr,"kr"]].forEach(([v,scale,color,key])=>{if(visible[key]&&v!=null){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,scale(v),3,0,Math.PI*2);ctx.fill()}})}if(selection){const x0s=clamp(selection.x0,box.x0,box.x1),x1s=clamp(selection.x1,box.x0,box.x1),left=Math.min(x0s,x1s),width=Math.abs(x1s-x0s);if(width>=3){ctx.fillStyle="rgba(111,74,168,.10)";ctx.strokeStyle="rgba(111,74,168,.55)";ctx.lineWidth=1;ctx.setLineDash([4,3]);ctx.fillRect(left,box.y1,width,box.y0-box.y1);ctx.strokeRect(left,box.y1,width,box.y0-box.y1);ctx.setLineDash([])}}}function drawLegend(x,y){legendHits=[];const items=[{key:"f",color:colors.f,label:"信用交易融资余额（万亿韩元）"},{key:"kr",color:colors.kr,label:"KOSPI 相对值"},{key:"nf",color:colors.nf,label:"外国人净买入"},{key:"peak",color:colors.peak,label:"融资旧高",dash:true},{key:"notes",color:"#94a3b8",label:"文字注释"}];ctx.font="13px Microsoft YaHei,Arial";let cur=x;items.forEach(item=>{const textW=ctx.measureText(item.label).width,w=textW+46;legendHits.push({key:item.key,x:cur-4,y:y-14,w:w+8,h:26});ctx.globalAlpha=visible[item.key]?1:.28;ctx.strokeStyle=item.color;ctx.lineWidth=item.dash?.8:2;ctx.setLineDash(item.dash?[6,4]:[]);ctx.beginPath();ctx.moveTo(cur,y);ctx.lineTo(cur+28,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#374151";ctx.textAlign="left";ctx.fillText(item.label,cur+36,y+4);ctx.globalAlpha=1;cur+=w+24})}function legendAt(x,y){return legendHits.find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h)}function inPlot(x,y){return x>=box.x0&&x<=box.x1&&y>=box.y1&&y<=box.y0}function clamp(v,a,b){return Math.max(a,Math.min(b,v))}function indexAtX(x){return box.imin+(x-box.x0)/(box.x1-box.x0)*(box.imax-box.imin)}function nearest(mx){let idx=Math.round(indexAtX(mx));idx=Math.max(0,Math.min(rows.length-1,idx));return idx}canvas.addEventListener("mousedown",e=>{const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;if(legendAt(x,y)||!inPlot(x,y))return;drag={x0:x,x1:x};selection=null;tip.style.display="none";canvas.style.cursor="crosshair"});window.addEventListener("mouseup",e=>{if(!drag)return;const rect=canvas.getBoundingClientRect(),x=clamp(e.clientX-rect.left,box.x0,box.x1);drag.x1=x;const width=Math.abs(drag.x1-drag.x0);if(width>12){const a=Math.min(drag.x0,drag.x1),b=Math.max(drag.x0,drag.x1);view=[indexAtX(a),indexAtX(b)]}drag=null;selection=null;canvas.style.cursor="default";tip.style.display="none";draw()});canvas.addEventListener("dblclick",e=>{const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;if(inPlot(x,y)){view=null;selection=null;tip.style.display="none";draw()}});canvas.addEventListener("click",e=>{const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top,hit=legendAt(x,y);if(hit){visible[hit.key]=!visible[hit.key];tip.style.display="none";draw()}});canvas.addEventListener("mousemove",e=>{const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;if(drag){drag.x1=clamp(x,box.x0,box.x1);selection=drag;tip.style.display="none";draw();return}const hit=legendAt(x,y);canvas.style.cursor=hit?"pointer":inPlot(x,y)?"crosshair":"default";if(hit){tip.style.display="none";draw();return}if(!inPlot(x,y)){tip.style.display="none";draw();return}const i=nearest(x),r=rows[i];draw(i);tip.innerHTML=`<b>${r.date}</b><br>信用交易融资余额：${fmt(r.f,3)} 万亿韩元<br>KOSPI：${fmt(r.k,2)} 点，相对值 ${fmt(r.kr,2)}<br>外国人净买入：${fmt(r.nf,0)} 亿韩元`;tip.style.display="block";tip.style.left=Math.min(rect.width-300,Math.max(8,x+14))+"px";tip.style.top=Math.max(8,y-72)+"px"});canvas.addEventListener("mouseleave",()=>{if(drag)return;selection=null;tip.style.display="none";canvas.style.cursor="default";draw()});window.addEventListener("resize",resize);resize();
+const P=__PAYLOAD__;const rows=P.data.map((d,i)=>({i,date:d[0],f:d[1],k:d[2],kr:d[3],nf:d[4],fc:d[5],by:d[6],byr:d[7],fx:d[8],fxr:d[9]}));const meta=P.meta,canvas=document.getElementById("chart"),ctx=canvas.getContext("2d"),tip=document.getElementById("tip");const colors={f:"#e56b2f",kr:"#0086b0",nf:"#16a34a",by:"#7c3aed",fx:"#334155",fc:"#0f766e",nfDown:"#dc2626",peak:"#7bb8f8"};let box={},legendHits=[],visible={f:true,kr:true,nf:true,by:false,fx:false,peak:true,notes:new URLSearchParams(location.search).get("notes")!=="0"},view=null,drag=null,selection=null,xScale,yLeft,yRight,plotRows=rows;function fmt(v,d=2){return v==null?"-":Number(v).toFixed(d)}function amountLine(v){return v==null?"":`\\n融资 ${fmt(v,3)}万亿韩元`}function kospiLine(v){return v==null?"":`\\nKOSPI ${fmt(v,2)}点`}function foreignCumLine(v){return v==null?"":`\\n外资累计 ${fmt(v,2)}万亿韩元`}function dataDomain(){const a=0,b=rows.length-1,pad=Math.max(1,(b-a)*.045);return[a-pad,b+pad]}function values(k,source=plotRows){return source.map(r=>r[k]).filter(v=>v!=null&&Number.isFinite(v))}function extent(keys,source=plotRows){const a=keys.flatMap(k=>values(k,source));return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}function niceTicks(min,max,n){const span=Math.max(1e-9,max-min),raw=span/Math.max(1,n),pow=Math.pow(10,Math.floor(Math.log10(raw))),base=[1,2,5,10].find(x=>x*pow>=raw)*pow,start=Math.ceil(min/base)*base,out=[];for(let v=start;v<=max+base*.5;v+=base)out.push(v);return out}function resize(){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw()}function rowByDate(date){return rows.find(r=>r.date===date)}function textBox(text,x,y,align="left"){const lines=text.split("\\n"),padX=12,padY=5,lh=16,extra=18,w=Math.max(...lines.map(s=>ctx.measureText(s).width))+padX*2+extra,h=lines.length*lh+padY*2;let bx=align==="right"?x-w:x;ctx.save();ctx.shadowColor="rgba(15,23,42,.16)";ctx.shadowBlur=18;ctx.shadowOffsetY=8;ctx.fillStyle="rgba(255,255,255,.42)";ctx.strokeStyle="rgba(255,255,255,.76)";ctx.lineWidth=.9;ctx.beginPath();ctx.roundRect(bx,y,w,h,8);ctx.fill();ctx.shadowBlur=0;ctx.stroke();ctx.restore();ctx.fillStyle="rgba(15,23,42,.94)";ctx.textAlign="left";lines.forEach((s,i)=>ctx.fillText(s,bx+padX,y+padY+12+i*lh))}function inRange(date){const r=rowByDate(date);return r&&r.i>=box.imin&&r.i<=box.imax}function drawLabel(p,text,dx,dy,color,side){if(!visible.notes||!inRange(p.date))return;const r=rowByDate(p.date),x=xScale(r.i),y=side==="left"?yLeft(p.value):yRight(p.value);ctx.strokeStyle="#64748b";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+dx,y+dy);ctx.stroke();ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();textBox(text,x+dx+(dx<0?-6:6),y+dy-20,dx<0?"right":"left")}function drawForeignBars(x0,x1,y0,y1){if(!visible.nf)return;const nums=values("nf");if(!nums.length)return;const maxAbs=Math.max(...nums.map(v=>Math.abs(v)));if(!maxAbs)return;const zero=y0-(y0-y1)*.17,band=(y0-y1)*.13,step=Math.abs(xScale(Math.min(box.imax,box.imin+1))-xScale(box.imin))||1,bw=Math.max(1,Math.min(5,step*.72));ctx.strokeStyle="rgba(71,85,105,.38)";ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(x0,zero);ctx.lineTo(x1,zero);ctx.stroke();for(const r of rows){if(r.i<box.imin||r.i>box.imax||r.nf==null)continue;const x=xScale(r.i),y=zero-(r.nf/maxAbs)*band;ctx.fillStyle=r.nf>=0?"rgba(22,163,74,.34)":"rgba(220,38,38,.30)";ctx.fillRect(x-bw/2,Math.min(y,zero),bw,Math.max(1,Math.abs(y-zero)))}ctx.fillStyle="#64748b";ctx.textAlign="left";ctx.font="12px Microsoft YaHei,Arial";ctx.fillText("外资净买入（亿韩元）",x0+8,zero-6)}function draw(active){const w=canvas.clientWidth,h=canvas.clientHeight,p={l:96,r:106,t:98,b:76},x0=p.l,x1=w-p.r,y0=h-p.b,y1=p.t,[fullMin,fullMax]=dataDomain(),imin=view?view[0]:fullMin,imax=view?view[1]:fullMax;plotRows=rows.filter(r=>r.i>=imin&&r.i<=imax);if(!plotRows.length)plotRows=rows;ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);ctx.font="12px Microsoft YaHei,Arial";const rKeys=["kr"];if(visible.by)rKeys.push("byr");if(visible.fx)rKeys.push("fxr");const [fMin0,fMax0]=extent(["f"]),[rMin0,rMax0]=extent(rKeys);const fPad=Math.max(.1,(fMax0-fMin0)*.06),fMin=Math.min(0,fMin0-fPad),fMax=Math.max(fMax0,meta.oldPeak,meta.newHigh)+fPad,rMin=Math.max(0,rMin0*.9),rMax=rMax0*1.08;box={x0,x1,y0,y1,imin,imax,fMin,fMax,rMin,rMax};xScale=i=>x0+(i-imin)/(imax-imin)*(x1-x0);yLeft=v=>y0-(v-fMin)/(fMax-fMin)*(y0-y1);yRight=v=>y0-(v-rMin)/(rMax-rMin)*(y0-y1);ctx.fillStyle="#111827";ctx.font="700 22px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText("KOSPI & Cash flow",w/2,32);drawLegend(x0,58);ctx.font="12px Microsoft YaHei,Arial";ctx.lineWidth=.6;niceTicks(fMin,fMax,6).forEach(v=>{const y=yLeft(v);ctx.strokeStyle="#e5e7eb";ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();ctx.fillStyle=colors.f;ctx.textAlign="right";ctx.fillText(v.toFixed(1),x0-9,y+4)});niceTicks(rMin,rMax,6).forEach(v=>{const y=yRight(v);ctx.fillStyle="#111";ctx.textAlign="left";ctx.fillText(Math.round(v),x1+9,y+4)});let seenYear=null;for(const r of rows){if(r.i<imin||r.i>imax)continue;const year=r.date.slice(0,4);if(year===seenYear)continue;seenYear=year;const x=xScale(r.i);ctx.strokeStyle="#eef2f7";ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,y0);ctx.stroke();ctx.fillStyle="#4b5563";ctx.textAlign="center";ctx.fillText(year,x,y0+24)}ctx.strokeStyle="#111827";ctx.lineWidth=1;ctx.strokeRect(x0,y1,x1-x0,y0-y1);drawForeignBars(x0,x1,y0,y1);function path(key,color,width,scale,visibleKey=key){if(!visible[visibleKey])return;ctx.beginPath();let open=false;for(const r of rows){const v=r[key];if(v==null||r.i<imin||r.i>imax){open=false;continue}const x=xScale(r.i),y=scale(v);if(!open){ctx.moveTo(x,y);open=true}else ctx.lineTo(x,y)}ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke()}path("f",colors.f,1.18,yLeft);path("kr",colors.kr,1.0,yRight);path("byr",colors.by,.95,yRight,"by");path("fxr",colors.fx,.95,yRight,"fx");if(visible.peak){const py=yLeft(meta.oldPeak);ctx.setLineDash([6,4]);ctx.strokeStyle=colors.peak;ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x0,py);ctx.lineTo(x1,py);ctx.stroke();ctx.setLineDash([])}ctx.save();ctx.translate(22,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillStyle=colors.f;ctx.textAlign="center";ctx.fillText("融资余额（万亿韩元）",0,0);ctx.restore();ctx.save();ctx.translate(w-24,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle="#111";ctx.textAlign="center";ctx.fillText("相对值（2014-01=100）",0,0);ctx.restore();if(visible.f&&visible.peak)drawLabel({date:meta.oldPeakDate,value:meta.oldPeak},`融资旧高\\n${meta.oldPeakDate}\\n融资 ${fmt(meta.oldPeak,3)}万亿韩元${kospiLine(meta.oldPeakKospi)}`,34,30,colors.f,"left");if(visible.f&&meta.newHighDate!==meta.oldPeakDate)drawLabel({date:meta.newHighDate,value:meta.newHigh},`融资突破旧高\\n${meta.newHighDate}\\n融资 ${fmt(meta.newHigh,3)}万亿韩元${kospiLine(meta.newHighKospi)}`,-34,-54,colors.f,"left");[["2020-03-19",34,-62],["2025-04-09",48,-104]].forEach(([date,dx,dy])=>{const r=rowByDate(date);if(r&&visible.kr)drawLabel({date:date,value:r.kr},`牛市起点\\n${date}${kospiLine(r.k)}${amountLine(r.f)}`,dx,dy,colors.kr,"right")});ctx.fillStyle="#4b5563";ctx.textAlign="left";ctx.font="12px Microsoft YaHei,Arial";if(new URLSearchParams(location.search).get("embed")!=="1"){ctx.textAlign="right";ctx.fillText("Made by Yilimi",x1,y0+46);ctx.textAlign="left";ctx.fillText(`更新时间：${meta.updatedAt}；数据源：KOFIA FreeSIS、Yahoo Finance、Naver Finance、TradingView。`,x0,y0+64);}if(active!=null){const r=rows[active],x=xScale(r.i);ctx.strokeStyle="rgba(31,41,55,.42)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,y0);ctx.stroke();[[r.f,yLeft,colors.f,"f"],[r.kr,yRight,colors.kr,"kr"],[r.byr,yRight,colors.by,"by"],[r.fxr,yRight,colors.fx,"fx"]].forEach(([v,scale,color,key])=>{if(visible[key]&&v!=null){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,scale(v),3,0,Math.PI*2);ctx.fill()}})}if(selection){const x0s=clamp(selection.x0,box.x0,box.x1),x1s=clamp(selection.x1,box.x0,box.x1),left=Math.min(x0s,x1s),width=Math.abs(x1s-x0s);if(width>=3){ctx.fillStyle="rgba(111,74,168,.10)";ctx.strokeStyle="rgba(111,74,168,.55)";ctx.lineWidth=1;ctx.setLineDash([4,3]);ctx.fillRect(left,box.y1,width,box.y0-box.y1);ctx.strokeRect(left,box.y1,width,box.y0-box.y1);ctx.setLineDash([])}}}function drawLegend(x,y){legendHits=[];const items=[{key:"f",color:colors.f,label:"信用交易融资余额（万亿韩元）"},{key:"kr",color:colors.kr,label:"KOSPI 相对值"},{key:"by",color:colors.by,label:"韩国10年国债收益率相对值"},{key:"fx",color:colors.fx,label:"USD/KRW 相对值"},{key:"nf",color:colors.nf,label:"外国人净买入"},{key:"peak",color:colors.peak,label:"融资旧高",dash:true},{key:"notes",color:"#94a3b8",label:"文字注释"}];ctx.font="13px Microsoft YaHei,Arial";let cur=x;items.forEach(item=>{const textW=ctx.measureText(item.label).width,w=textW+46;legendHits.push({key:item.key,x:cur-4,y:y-14,w:w+8,h:26});ctx.globalAlpha=visible[item.key]?1:.28;ctx.strokeStyle=item.color;ctx.lineWidth=item.dash?.8:2;ctx.setLineDash(item.dash?[6,4]:[]);ctx.beginPath();ctx.moveTo(cur,y);ctx.lineTo(cur+28,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#374151";ctx.textAlign="left";ctx.fillText(item.label,cur+36,y+4);ctx.globalAlpha=1;cur+=w+24})}function legendAt(x,y){return legendHits.find(h=>x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h)}function inPlot(x,y){return x>=box.x0&&x<=box.x1&&y>=box.y1&&y<=box.y0}function clamp(v,a,b){return Math.max(a,Math.min(b,v))}function indexAtX(x){return box.imin+(x-box.x0)/(box.x1-box.x0)*(box.imax-box.imin)}function nearest(mx){let idx=Math.round(indexAtX(mx));idx=Math.max(0,Math.min(rows.length-1,idx));return idx}canvas.addEventListener("mousedown",e=>{const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;if(legendAt(x,y)||!inPlot(x,y))return;drag={x0:x,x1:x};selection=null;tip.style.display="none";canvas.style.cursor="crosshair"});window.addEventListener("mouseup",e=>{if(!drag)return;const rect=canvas.getBoundingClientRect(),x=clamp(e.clientX-rect.left,box.x0,box.x1);drag.x1=x;const width=Math.abs(drag.x1-drag.x0);if(width>12){const a=Math.min(drag.x0,drag.x1),b=Math.max(drag.x0,drag.x1);view=[indexAtX(a),indexAtX(b)]}drag=null;selection=null;canvas.style.cursor="default";tip.style.display="none";draw()});canvas.addEventListener("dblclick",e=>{const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;if(inPlot(x,y)){view=null;selection=null;tip.style.display="none";draw()}});canvas.addEventListener("click",e=>{const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top,hit=legendAt(x,y);if(hit){visible[hit.key]=!visible[hit.key];tip.style.display="none";draw()}});canvas.addEventListener("mousemove",e=>{const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;if(drag){drag.x1=clamp(x,box.x0,box.x1);selection=drag;tip.style.display="none";draw();return}const hit=legendAt(x,y);canvas.style.cursor=hit?"pointer":inPlot(x,y)?"crosshair":"default";if(hit){tip.style.display="none";draw();return}if(!inPlot(x,y)){tip.style.display="none";draw();return}const i=nearest(x),r=rows[i];draw(i);tip.innerHTML=`<b>${r.date}</b><br>信用交易融资余额：${fmt(r.f,3)} 万亿韩元<br>KOSPI：${fmt(r.k,2)} 点，相对值 ${fmt(r.kr,2)}${visible.by&&r.by!=null?`<br>韩国10年国债收益率：${fmt(r.by,3)}%，相对值 ${fmt(r.byr,2)}`:""}${visible.fx&&r.fx!=null?`<br>USD/KRW：${fmt(r.fx,2)}，相对值 ${fmt(r.fxr,2)}`:""}<br>外国人净买入：${fmt(r.nf,0)} 亿韩元`;tip.style.display="block";tip.style.left=Math.min(rect.width-300,Math.max(8,x+14))+"px";tip.style.top=Math.max(8,y-72)+"px"});canvas.addEventListener("mouseleave",()=>{if(drag)return;selection=null;tip.style.display="none";canvas.style.cursor="default";draw()});window.addEventListener("resize",resize);resize();
 </script></body></html>
 """
     weekday_tooltip_patch = """
@@ -388,9 +432,13 @@ def main() -> int:
     financing = fetch_credit_financing_balance()
     kospi = fetch_kospi()
     foreign = fetch_foreign_net_buy()
+    bond = fetch_korea_10y_yield()
+    usdkrw = fetch_usdkrw()
     data = pd.merge(financing, kospi, on="date", how="outer").sort_values("date")
     data = pd.merge(data, foreign, on="date", how="outer").sort_values("date")
-    data = data.dropna(subset=["credit_financing_trillion_krw", "kospi_close"])
+    data = pd.merge(data, bond, on="date", how="outer").sort_values("date")
+    data = pd.merge(data, usdkrw, on="date", how="outer").sort_values("date")
+    data = data.dropna(subset=["kospi_close"])
     data = add_index_ratios(data)
 
     csv_path = OUT_DIR / "korea_margin_kospi_data.csv"

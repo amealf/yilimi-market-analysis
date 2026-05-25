@@ -91,14 +91,19 @@ def build_usdt_speed_indicator(chart: dict) -> dict:
 
 
 def build_korea_margin_kospi(chart: dict) -> dict:
+    sys.path.insert(0, str(ROOT))
     sys.path.insert(0, str(SCRIPTS_DIR))
     module = importlib.import_module(chart["module"])
 
     financing = module.fetch_credit_financing_balance()
     kospi = module.fetch_kospi()
     foreign = module.fetch_foreign_net_buy()
+    bond = module.fetch_korea_10y_yield()
+    usdkrw = module.fetch_usdkrw()
     data = pd.merge(financing, kospi, on="date", how="outer").sort_values("date")
     data = pd.merge(data, foreign, on="date", how="outer").sort_values("date")
+    data = pd.merge(data, bond, on="date", how="outer").sort_values("date")
+    data = pd.merge(data, usdkrw, on="date", how="outer").sort_values("date")
     data = data[data["date"] < datetime.now(ZoneInfo("Asia/Seoul")).date()]
     data = data.dropna(subset=["kospi_close"])
     data = module.add_index_ratios(data)

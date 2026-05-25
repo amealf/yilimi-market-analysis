@@ -36,7 +36,7 @@ charts:
   - id: korea-margin-kospi
     category: other-markets
     title: KOSPI & Cash flow
-    description: KOSPI、韩国信用交易融资余额和外国人净买入的对比图。
+    description: KOSPI、韩国信用交易融资余额、外国人净买入、韩国10年国债收益率和USD/KRW的对比图。
     builder: korea_margin_kospi
     module: plot_korea_margin_kospi
     output_html: charts/other-markets/korea-margin-kospi.html
