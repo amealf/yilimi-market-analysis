@@ -373,7 +373,11 @@ def category_card(category: dict, charts: list[dict], prefix: str = "") -> str:
     category_url = prefix + f"{category['id']}/index.html"
     title = html.escape(category["title"])
     description = html.escape(str(category.get("description") or ""))
-    chart_chips = "".join(f'<span class="chip">{html.escape(chart["title"])}</span>' for chart in charts)
+    chart_chip_items = []
+    for chart in charts:
+        chart_url = prefix + chart["output_html"].replace("\\", "/")
+        chart_chip_items.append(f'<a class="chip" href="{html.escape(chart_url)}">{html.escape(chart["title"])}</a>')
+    chart_chips = "".join(chart_chip_items)
     return f"""
 <article class="card">
   <h3>{title}</h3>
@@ -433,7 +437,7 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
   </div>
 </div>
 <section>
-  <h2>市场监控</h2>
+  <h2>现金流监控</h2>
   <div class="grid">{''.join(home_cards)}</div>
 </section>
 """
