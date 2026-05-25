@@ -431,6 +431,14 @@ const P=__PAYLOAD__;const rows=P.data.map((d,i)=>({i,date:d[0],f:d[1],k:d[2],kr:
         'label:"信用交易融资余额（万亿韩元）"',
         'label:"信用交易融资余额"',
     )
+    html = html.replace(
+        '{key:"f",color:colors.f,label:"信用交易融资余额"},{key:"kr",color:colors.kr,label:"KOSPI 相对值"},{key:"by",color:colors.by,label:"韩国10年国债收益率相对值"},{key:"fx",color:colors.fx,label:"USD/KRW 相对值"},{key:"nf",color:colors.nf,label:"外国人净买入"}',
+        '{key:"f",color:colors.f,label:"信用交易融资余额"},{key:"kr",color:colors.kr,label:"KOSPI 相对值"},{key:"nf",color:colors.nf,label:"外国人净买入"},{key:"by",color:colors.by,label:"韩国10年国债收益率相对值"},{key:"fx",color:colors.fx,label:"USD/KRW 相对值"}',
+    )
+    html = html.replace(
+        "peak:true,notes:",
+        "peak:false,notes:",
+    )
     weekday_tooltip_patch = """
 <script>
 function dayLabel(date){return `${date}（${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`}
