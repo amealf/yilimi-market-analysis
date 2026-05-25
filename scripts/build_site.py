@@ -16,11 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "scripts"
 SITE_DIR = ROOT / "site"
 CONFIG_PATH = ROOT / "charts.yml"
-DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、KOFIA FreeSIS、Yahoo Finance、Naver Finance、CNBC、TradingView、CSV"
+DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、KOFIA FreeSIS、Yahoo Finance、Naver Finance、CNBC、TradingView、NYMEX、ICE、CSV"
 CATEGORY_SOURCES = {
     "a-share-margin": "东方财富、新浪财经",
     "crypto-liquidity": "CryptoCompare、DefiLlama",
-    "other-markets": "KOFIA FreeSIS、Yahoo Finance、Naver Finance",
+    "other-markets": "KOFIA FreeSIS、Yahoo Finance、Naver Finance、TradingView、NYMEX、ICE",
     "global-rates": "CNBC、TradingView",
 }
 
@@ -133,6 +133,23 @@ def build_korea_margin_kospi(chart: dict) -> dict:
     }
 
 
+def build_oil_price_events(chart: dict) -> dict:
+    sys.path.insert(0, str(ROOT))
+    sys.path.insert(0, str(SCRIPTS_DIR))
+    module = importlib.import_module(chart["module"])
+
+    csv_path = site_path(chart["output_csv"])
+    html_path = site_path(chart["output_html"])
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+
+    source_cache_path = ROOT / chart["output_csv"]
+    data = module.build_price_frame(cache_path=source_cache_path if source_cache_path.exists() else csv_path)
+    data.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    module.write_interactive_html(data, html_path)
+    return module.chart_meta(data)
+
+
 def build_global_30y_bond_intraday(chart: dict) -> dict:
     sys.path.insert(0, str(ROOT))
     module = importlib.import_module(chart["module"])
@@ -169,6 +186,7 @@ BUILDERS = {
     "margin_csi500": build_margin_csi500,
     "usdt_speed_indicator": build_usdt_speed_indicator,
     "korea_margin_kospi": build_korea_margin_kospi,
+    "oil_price_events": build_oil_price_events,
     "global_30y_bond_intraday": build_global_30y_bond_intraday,
     "global_30y_bond_daily": build_global_30y_bond_daily,
 }

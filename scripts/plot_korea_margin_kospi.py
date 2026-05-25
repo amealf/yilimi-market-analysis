@@ -90,6 +90,28 @@ def fetch_naver_investor_page(bizdate: str, page: int) -> list[dict]:
     return parse_naver_investor_rows(fetch_text(req, "euc-kr"))
 
 
+def fetch_naver_investor_pages(bizdate: str, page_numbers: list[int]) -> list[list[dict]]:
+    batch_rows: list[list[dict] | None] = [None] * len(page_numbers)
+    failed_pages: list[tuple[int, int]] = []
+
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = [
+            executor.submit(fetch_naver_investor_page, bizdate, page_number)
+            for page_number in page_numbers
+        ]
+        for index, future in enumerate(futures):
+            try:
+                batch_rows[index] = future.result()
+            except Exception:
+                failed_pages.append((index, page_numbers[index]))
+
+    for index, page_number in failed_pages:
+        time.sleep(0.4)
+        batch_rows[index] = fetch_naver_investor_page(bizdate, page_number)
+
+    return [page_rows or [] for page_rows in batch_rows]
+
+
 def fetch_foreign_net_buy() -> pd.DataFrame:
     start_date = pd.to_datetime(START_DATE).date()
     bizdate = date.today().strftime("%Y%m%d")
@@ -100,8 +122,7 @@ def fetch_foreign_net_buy() -> pd.DataFrame:
 
     while True:
         page_numbers = list(range(page, page + batch_size))
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            batch_rows = list(executor.map(lambda value: fetch_naver_investor_page(bizdate, value), page_numbers))
+        batch_rows = fetch_naver_investor_pages(bizdate, page_numbers)
 
         if not any(batch_rows):
             break
