@@ -365,7 +365,7 @@ const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={kline:"#111111",upFill:"#ffffff",downFill:"#111111",text:"#111827",legend:"#374151",muted:"#4b5563",year:"#eef2f7",frame:"#111827",weekend:"rgba(148,163,184,.055)"};
+const colors={kline:"rgba(17,17,17,.72)",upFill:"rgba(255,255,255,.88)",downFill:"rgba(17,17,17,.72)",text:"#111827",legend:"#374151",muted:"#4b5563",dateLine:"rgba(0,0,0,.12)",frame:"rgba(17,17,17,.72)",weekend:"rgba(148,163,184,.055)"};
 const series=[
   {key:"brent",label:"ICE Brent K线",color:colors.kline,width:1.15}
 ];
@@ -412,9 +412,10 @@ function drawLegend(x,y,maxX){legendBoxes=[];ctx.font="13px Microsoft YaHei,Aria
 function drawPeriodTabs(x,y){periodBoxes=[];const labels=[["day","日"],["week","周"],["month","月"]];ctx.font="12px Microsoft YaHei,Arial";labels.forEach(([key,label],i)=>{const w=34,h=20,left=x+i*(w+6),active=period===key,hovered=hoverPeriod===key;periodBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});ctx.strokeStyle=active?"#1f77b4":hovered?"#7bb8f8":"rgba(71,85,105,.42)";ctx.lineWidth=active||hovered?1.35:.9;roundRect(left,y,w,h,5);ctx.stroke();ctx.fillStyle=hovered||active?colors.text:"rgba(71,85,105,.68)";ctx.textAlign="center";ctx.fillText(label,left+w/2,y+14)});ctx.lineWidth=1}
 function hitPeriod(p){return periodBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawAxes(){niceTicks(box.priceMin,box.priceMax,7).forEach(v=>{const y=yPrice(v);ctx.fillStyle=colors.text;ctx.textAlign="right";ctx.fillText(usd(v,0),box.x0-9,y+4);ctx.textAlign="left";ctx.fillText(basePct(v),box.x1+9,y+4)})}
+function drawDateTicks(){const start=new Date(box.t0);start.setUTCDate(1);start.setUTCHours(0,0,0,0);for(let t=start.getTime();t<=box.t1;){const d=new Date(t),x=xScale(t);if(x>=box.x0&&x<=box.x1){ctx.strokeStyle=colors.dateLine;ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`,x,box.y1+(isEmbed?23:28))}t=Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)}}
 function drawWeekends(){if(period!=="day")return;const start=new Date(box.t0);start.setUTCHours(0,0,0,0);for(let t=start.getTime();t<=box.t1;t+=DAY){const d=new Date(t).getUTCDay();if(d!==6&&d!==0)continue;const x0=xScale(t),x1=xScale(t+DAY);ctx.fillStyle=colors.weekend;ctx.fillRect(x0,box.y0,Math.max(1,x1-x0),box.y1-box.y0)}}
 function candleWidth(){const visible=rows.filter(r=>r.t>=box.t0&&r.t<=box.t1).length||1,byCount=(box.x1-box.x0)/visible*.56,byDay=(box.x1-box.x0)/Math.max(1,(box.t1-box.t0)/DAY)*.7;return Math.max(period==="day"?2:5,Math.min(period==="day"?10:22,Math.min(byCount,byDay)))}
-function drawCandles(){if(hidden.brent)return;const bodyW=candleWidth();rows.forEach(r=>{if(!hasOhlc(r)||r.t<box.t0||r.t>box.t1)return;const x=xScale(r.t),up=r.c>=r.o,yH=yPrice(r.h),yL=yPrice(r.l),yO=yPrice(r.o),yC=yPrice(r.c),top=Math.min(yO,yC),height=Math.max(1.5,Math.abs(yC-yO));ctx.strokeStyle=colors.kline;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,yH);ctx.lineTo(x,yL);ctx.stroke();ctx.fillStyle=up?colors.upFill:colors.downFill;ctx.strokeStyle=colors.kline;ctx.lineWidth=1.05;ctx.fillRect(x-bodyW/2,top,bodyW,height);ctx.strokeRect(x-bodyW/2,top,bodyW,height)})}
+function drawCandles(){if(hidden.brent)return;const bodyW=candleWidth();rows.forEach(r=>{if(!hasOhlc(r)||r.t<box.t0||r.t>box.t1)return;const x=xScale(r.t),up=r.c>=r.o,yH=yPrice(r.h),yL=yPrice(r.l),yO=yPrice(r.o),yC=yPrice(r.c),top=Math.min(yO,yC),height=Math.max(1.4,Math.abs(yC-yO));ctx.strokeStyle=colors.kline;ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x,yH);ctx.lineTo(x,yL);ctx.stroke();ctx.fillStyle=up?colors.upFill:colors.downFill;ctx.strokeStyle=colors.kline;ctx.lineWidth=.8;ctx.fillRect(x-bodyW/2,top,bodyW,height);ctx.strokeRect(x-bodyW/2,top,bodyW,height)})}
 function drawEvents(activeEventDate=null){
   eventBoxes=[];
   const laneCount=4,visible=events.filter(e=>e.t>=box.t0&&e.t<=box.t1).sort((a,b)=>a.t-b.t);
@@ -436,7 +437,7 @@ function draw(active,eventDate=null){
   refreshRows();
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035);
   const axisLeft=76,axisRight=76,titleY=outer+18,legendY=outer+56,xLabelGap=isEmbed?35:38;
-  const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+76,y1=h-outer-xLabelGap;
+  const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+54,y1=h-outer-xLabelGap;
   const [t0,t1]=currentRange(),sample=visibleRows(),[min0,max0]=priceExtent(sample),pad=Math.max((max0-min0)*.09,4);
   box={x0,x1,y0,y1,t0,t1,priceMin:min0-pad,priceMax:max0+pad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
@@ -444,8 +445,7 @@ function draw(active,eventDate=null){
   ctx.fillStyle=colors.text;ctx.font=`700 ${titleSize}px Microsoft YaHei,Arial`;ctx.textAlign="center";ctx.fillText("Brent 原油价格与事件",w/2,titleY);
   legendBoxes=[];drawPeriodTabs(x1-112,tabY);
   drawWeekends();
-  const startY=new Date(box.t0).getUTCFullYear(),endY=new Date(box.t1).getUTCFullYear();
-  for(let year=startY;year<=endY;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.strokeStyle=colors.year;ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
+  drawDateTicks();
   if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：北京时间 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
   drawAxes();
   ctx.strokeStyle=colors.frame;ctx.lineWidth=1;ctx.strokeRect(x0,y0,x1-x0,y1-y0);
