@@ -497,6 +497,8 @@ const periodNames={day:"日",week:"周",month:"月"};
 let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="week",hoverPeriod=null,hidden={usdc:true,stable:true,ma5:true,ma30:true,dev300:true,usRate:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
+function dayLabel(date){return `${date} ${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}`}
+function periodTitle(r){return period==="day"?`${dayLabel(r.date)}（日）`:`${r.date}（${periodNames[period]}）`}
 function weekKey(t){const d=new Date(t),day=d.getUTCDay(),diff=(day+6)%7,s=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-diff));return s.toISOString().slice(0,10)}
 function monthKey(t){const d=new Date(t);return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`}
 function groupedRows(mode){
@@ -647,7 +649,7 @@ function showTip(p){
   const i=nearest(p.x),r=rows[i];draw(i);
   const lines=series.filter(item=>!hidden[item.key]).map(item=>`${item.label}：${valueText(item,r)}`);
   tip.className="tip";
-  tip.innerHTML=`<b>${r.date}（${periodNames[period]}）</b><br>${lines.join("<br>")}`;
+  tip.innerHTML=`<b>${periodTitle(r)}</b><br>${lines.join("<br>")}`;
   tip.style.display="block";tip.style.left=Math.min(p.rect.width-250,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
 }
 canvas.addEventListener("click",e=>{const p=pointer(e),tab=hitPeriod(p);if(tab){period=tab.key;hoverPeriod=tab.key;zoom=null;tip.style.display="none";draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];tip.style.display="none";draw()});

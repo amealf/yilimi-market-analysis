@@ -176,7 +176,8 @@ def build_range_buttons(trace_modes: dict[int, dict[str, object]], full_range: l
 def prepare_daily_frame(frame: pd.DataFrame) -> pd.DataFrame:
     daily = frame.copy()
     daily["date"] = pd.to_datetime(daily["date"])
-    daily["date_text"] = daily["date"].dt.strftime("%Y-%m-%d")
+    weekday = daily["date"].dt.weekday.map({0: "一", 1: "二", 2: "三", 3: "四", 4: "五", 5: "六", 6: "日"})
+    daily["date_text"] = daily["date"].dt.strftime("%Y-%m-%d") + " " + weekday
     daily["period_change_plot"] = pd.to_numeric(daily["daily_change_bp"], errors="coerce").round(1)
     daily["period_label"] = "1D"
     daily["ytd_change_plot"] = pd.to_numeric(daily["ytd_change_bp"], errors="coerce").round(1)
