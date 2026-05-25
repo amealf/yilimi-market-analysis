@@ -44,7 +44,7 @@ charts:
   - id: oil-price-events
     category: other-markets
     title: Brent 原油价格与事件
-    description: ICE Brent 连续合约K线，数据从2026-01-01开始；周末和无交易日保留空白，方便标注事件。
+    description: ICE Brent 连续合约K线，数据从2023-01-01开始，默认显示2026-01-01以后；周末和无交易日保留空白，方便标注事件。
     builder: oil_price_events
     module: plot_oil_price_events
     output_html: charts/other-markets/oil-price-events.html

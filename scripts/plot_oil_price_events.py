@@ -12,7 +12,7 @@ from global_30y_bond_daily.providers.tradingview_provider import fetch as fetch_
 
 
 ROOT = Path(__file__).resolve().parents[1]
-START_DATE = date(2026, 1, 1)
+START_DATE = date(2023, 1, 1)
 END_DATE = date.today()
 DISPLAY_START = pd.Timestamp("2026-01-01")
 BAR_COUNT = 7000
@@ -311,9 +311,8 @@ def series_value(value: object, digits: int = 4) -> float | None:
 def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     meta = chart_meta(data)
     generated_at = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
-    display_data = data.loc[data["date"] >= DISPLAY_START]
     records = []
-    for row in display_data.itertuples(index=False):
+    for row in data.itertuples(index=False):
         records.append(
             {
                 "date": row.date.strftime("%Y-%m-%d"),
@@ -370,11 +369,11 @@ const series=[
   {key:"brent",label:"ICE Brent K线",color:colors.kline,width:1.15}
 ];
 const periodNames={day:"日",week:"周",month:"月"};
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="day",hoverPeriod=null,hidden={};
+const startOptions=[["2026-01-01","2026"],["2025-01-01","2025"],["2024-01-01","2024"],["2023-01-01","2023"]];
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],startBoxes=[],period="day",viewStart="2026-01-01",hoverPeriod=null,hoverStart=null,hidden={};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function hasOhlc(r){return [r.o,r.h,r.l,r.c].every(v=>v!=null&&Number.isFinite(v))}
-const baseOpen=(rawRows.find(r=>r.o!=null&&Number.isFinite(r.o))||{}).o||null;
 function weekKey(t){const d=new Date(t),day=d.getUTCDay(),diff=(day+6)%7,s=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-diff));return s.toISOString().slice(0,10)}
 function monthKey(t){const d=new Date(t);return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`}
 function periodTime(key,mode){return new Date(`${key}${mode==="month"?"-01":""}T00:00:00Z`).getTime()}
@@ -394,9 +393,11 @@ function groupedRows(mode){
 let rows=groupedRows(period);
 function refreshRows(){rows=groupedRows(period)}
 function displayEnd(){return rows[rows.length-1].t+DAY*5}
-function defaultRange(){return [rows[0].t,displayEnd()]}
+function selectedStart(){return new Date(`${viewStart}T00:00:00Z`).getTime()}
+function defaultRange(){return [Math.max(rows[0].t,selectedStart()),displayEnd()]}
 function usd(v,d=2){return v==null?"-":"$"+Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})}
-function basePct(v){return baseOpen&&v!=null?(v/baseOpen*100).toFixed(0)+"%":"-"}
+function visibleBaseOpen(){const [t0,t1]=currentRange(),r=rows.find(row=>row.t>=t0&&row.t<=t1&&row.o!=null&&Number.isFinite(row.o));return r?r.o:null}
+function basePct(v){return box.baseOpen&&v!=null?(v/box.baseOpen*100).toFixed(0)+"%":"-"}
 function signedPct(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"")+n.toFixed(2)+"%"}
 function valueText(r){return hasOhlc(r)?`开 ${usd(r.o)}　高 ${usd(r.h)}　低 ${usd(r.l)}　收 ${usd(r.c)}　${signedPct(r.brentDaily)}`:"-"}
 function priceExtent(list=rows){const a=[];list.forEach(r=>{if(r.h!=null&&Number.isFinite(r.h))a.push(r.h);if(r.l!=null&&Number.isFinite(r.l))a.push(r.l)});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
@@ -410,9 +411,12 @@ function roundRect(x,y,w,h,r){const rr=Math.min(r,w/2,h/2);ctx.beginPath();ctx.m
 function niceTicks(min,max,count){const span=Math.max(1e-9,max-min),raw=span/Math.max(1,count),pow=Math.pow(10,Math.floor(Math.log10(raw))),base=[1,2,5,10].find(v=>v*pow>=raw)*pow,start=Math.ceil(min/base)*base,out=[];for(let v=start;v<=max+base*.45;v+=base)out.push(v);return out}
 function drawLegend(x,y,maxX){legendBoxes=[];ctx.font="13px Microsoft YaHei,Arial";let cur=x,rowY=y;series.forEach(item=>{const labelW=ctx.measureText(item.label).width,total=labelW+74,off=hidden[item.key];if(cur>x&&cur+total>maxX){cur=x;rowY+=22}legendBoxes.push({key:item.key,x0:cur-5,y0:rowY-14,x1:cur+total-16,y1:rowY+10});ctx.globalAlpha=off?.28:1;ctx.strokeStyle=off?"rgba(82,96,113,.45)":colors.kline;ctx.fillStyle=off?"rgba(82,96,113,.58)":colors.upFill;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(cur+14,rowY-9);ctx.lineTo(cur+14,rowY+8);ctx.stroke();ctx.strokeRect(cur+8,rowY-4,12,8);ctx.fillRect(cur+8,rowY-4,12,8);ctx.fillStyle=off?"rgba(82,96,113,.58)":colors.legend;ctx.textAlign="left";ctx.fillText(item.label,cur+32,rowY+4);ctx.globalAlpha=1;cur+=total})}
 function drawPeriodTabs(x,y){periodBoxes=[];const labels=[["day","日"],["week","周"],["month","月"]];ctx.font="12px Microsoft YaHei,Arial";labels.forEach(([key,label],i)=>{const w=34,h=20,left=x+i*(w+6),active=period===key,hovered=hoverPeriod===key;periodBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});ctx.strokeStyle=active?"#1f77b4":hovered?"#7bb8f8":"rgba(71,85,105,.42)";ctx.lineWidth=active||hovered?1.35:.9;roundRect(left,y,w,h,5);ctx.stroke();ctx.fillStyle=hovered||active?colors.text:"rgba(71,85,105,.68)";ctx.textAlign="center";ctx.fillText(label,left+w/2,y+14)});ctx.lineWidth=1}
+function drawStartTabs(x,y){startBoxes=[];ctx.font="12px Microsoft YaHei,Arial";ctx.fillStyle="rgba(71,85,105,.68)";ctx.textAlign="right";ctx.fillText("起点",x-8,y+14);startOptions.forEach(([key,label],i)=>{const w=42,h=20,left=x+i*(w+6),active=viewStart===key,hovered=hoverStart===key;startBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});ctx.strokeStyle=active?"#1f77b4":hovered?"#7bb8f8":"rgba(71,85,105,.42)";ctx.lineWidth=active||hovered?1.35:.9;roundRect(left,y,w,h,5);ctx.stroke();ctx.fillStyle=hovered||active?colors.text:"rgba(71,85,105,.68)";ctx.textAlign="center";ctx.fillText(label,left+w/2,y+14)});ctx.lineWidth=1}
 function hitPeriod(p){return periodBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
+function hitStart(p){return startBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawAxes(){niceTicks(box.priceMin,box.priceMax,7).forEach(v=>{const y=yPrice(v);ctx.fillStyle=colors.text;ctx.textAlign="right";ctx.fillText(usd(v,0),box.x0-9,y+4);ctx.textAlign="left";ctx.fillText(basePct(v),box.x1+9,y+4)})}
-function drawDateTicks(){const start=new Date(box.t0);start.setUTCDate(1);start.setUTCHours(0,0,0,0);for(let t=start.getTime();t<=box.t1;){const d=new Date(t),x=xScale(t);if(x>=box.x0&&x<=box.x1){ctx.strokeStyle=colors.dateLine;ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`,x,box.y1+(isEmbed?23:28))}t=Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)}}
+function monthIndex(t){const d=new Date(t);return d.getUTCFullYear()*12+d.getUTCMonth()}
+function drawDateTicks(){const start=new Date(box.t0);start.setUTCDate(1);start.setUTCHours(0,0,0,0);const spanMonths=Math.max(1,monthIndex(box.t1)-monthIndex(box.t0)+1),step=spanMonths>48?6:spanMonths>18?3:1;for(let t=start.getTime();t<=box.t1;){const d=new Date(t),x=xScale(t),idx=monthIndex(t);if(idx%step===0&&x>=box.x0&&x<=box.x1){ctx.strokeStyle=colors.dateLine;ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`,x,box.y1+(isEmbed?23:28))}t=Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)}}
 function drawWeekends(){if(period!=="day")return;const start=new Date(box.t0);start.setUTCHours(0,0,0,0);for(let t=start.getTime();t<=box.t1;t+=DAY){const d=new Date(t).getUTCDay();if(d!==6&&d!==0)continue;const x0=xScale(t),x1=xScale(t+DAY);ctx.fillStyle=colors.weekend;ctx.fillRect(x0,box.y0,Math.max(1,x1-x0),box.y1-box.y0)}}
 function candleWidth(){const visible=rows.filter(r=>r.t>=box.t0&&r.t<=box.t1).length||1,byCount=(box.x1-box.x0)/visible*.56,byDay=(box.x1-box.x0)/Math.max(1,(box.t1-box.t0)/DAY)*.7;return Math.max(period==="day"?2:5,Math.min(period==="day"?10:22,Math.min(byCount,byDay)))}
 function drawCandles(){if(hidden.brent)return;const bodyW=candleWidth();rows.forEach(r=>{if(!hasOhlc(r)||r.t<box.t0||r.t>box.t1)return;const x=xScale(r.t),up=r.c>=r.o,yH=yPrice(r.h),yL=yPrice(r.l),yO=yPrice(r.o),yC=yPrice(r.c),top=Math.min(yO,yC),height=Math.max(1.4,Math.abs(yC-yO));ctx.strokeStyle=colors.kline;ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x,yH);ctx.lineTo(x,yL);ctx.stroke();ctx.fillStyle=up?colors.upFill:colors.downFill;ctx.strokeStyle=colors.kline;ctx.lineWidth=.8;ctx.fillRect(x-bodyW/2,top,bodyW,height);ctx.strokeRect(x-bodyW/2,top,bodyW,height)})}
@@ -439,11 +443,12 @@ function draw(active,eventDate=null){
   const axisLeft=76,axisRight=76,titleY=outer+18,legendY=outer+56,xLabelGap=isEmbed?35:38;
   const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+54,y1=h-outer-xLabelGap;
   const [t0,t1]=currentRange(),sample=visibleRows(),[min0,max0]=priceExtent(sample),pad=Math.max((max0-min0)*.09,4);
-  box={x0,x1,y0,y1,t0,t1,priceMin:min0-pad,priceMax:max0+pad};
+  box={x0,x1,y0,y1,t0,t1,priceMin:min0-pad,priceMax:max0+pad,baseOpen:null};
+  box.baseOpen=visibleBaseOpen();
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   const titleSize=isEmbed&&w<760?18:21,tabY=isEmbed&&w<760?legendY-14:titleY-15;
   ctx.fillStyle=colors.text;ctx.font=`700 ${titleSize}px Microsoft YaHei,Arial`;ctx.textAlign="center";ctx.fillText("Brent 原油价格与事件",w/2,titleY);
-  legendBoxes=[];drawPeriodTabs(x1-112,tabY);
+  legendBoxes=[];const periodX=x1-112;drawStartTabs(Math.max(x0,periodX-224),tabY);drawPeriodTabs(periodX,tabY);
   drawWeekends();
   drawDateTicks();
   if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：北京时间 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
@@ -471,11 +476,11 @@ function showTip(p){
   const line=hidden.brent?"ICE Brent K线：-":`ICE Brent K线：${valueText(r)}`;
   tip.className="tip";tip.innerHTML=`<b>${r.date}（${periodNames[period]}）</b><br>${line}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-320,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
 }
-canvas.addEventListener("click",e=>{const p=pointer(e),tab=hitPeriod(p);if(tab){period=tab.key;hoverPeriod=tab.key;zoom=null;tip.style.display="none";draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];tip.style.display="none";draw()});
-canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitPeriod(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};tip.style.display="none"});
-canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;tip.style.display="none";draw();drawSelection();return}const tab=hitPeriod(p);if(tab){if(hoverPeriod!==tab.key){hoverPeriod=tab.key;draw()}canvas.style.cursor="pointer";tip.style.display="none";return}if(hoverPeriod!==null){hoverPeriod=null;draw()}showTip(p)});
+canvas.addEventListener("click",e=>{const p=pointer(e),startTab=hitStart(p),tab=hitPeriod(p);if(startTab){viewStart=startTab.key;hoverStart=startTab.key;zoom=null;tip.style.display="none";draw();return}if(tab){period=tab.key;hoverPeriod=tab.key;zoom=null;tip.style.display="none";draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];tip.style.display="none";draw()});
+canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitPeriod(p)||hitStart(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};tip.style.display="none"});
+canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;tip.style.display="none";draw();drawSelection();return}const tab=hitPeriod(p),startTab=hitStart(p);if(tab||startTab){let changed=false;if((tab?tab.key:null)!==hoverPeriod){hoverPeriod=tab?tab.key:null;changed=true}if((startTab?startTab.key:null)!==hoverStart){hoverStart=startTab?startTab.key:null;changed=true}if(changed)draw();canvas.style.cursor="pointer";tip.style.display="none";return}if(hoverPeriod!==null||hoverStart!==null){hoverPeriod=null;hoverStart=null;draw()}showTip(p)});
 window.addEventListener("mouseup",()=>{if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1);if(Math.abs(x1-x0)>12){const a=timeAtX(x0),b=timeAtX(x1);zoom=[Math.min(a,b),Math.max(a,b)]}drag=null;tip.style.display="none";draw()});
-canvas.addEventListener("mouseleave",()=>{if(drag)return;hoverPeriod=null;tip.style.display="none";canvas.style.cursor="default";draw()});
+canvas.addEventListener("mouseleave",()=>{if(drag)return;hoverPeriod=null;hoverStart=null;tip.style.display="none";canvas.style.cursor="default";draw()});
 canvas.addEventListener("dblclick",()=>{zoom=null;drag=null;tip.style.display="none";draw()});
 window.addEventListener("resize",resize);
 refreshRows();
