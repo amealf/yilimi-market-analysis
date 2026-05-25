@@ -372,7 +372,7 @@ const startOptions=[["2026-01-01","2026"],["2025-01-01","2025"],["2024-01-01","2
 let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],startBoxes=[],viewStart="2026-01-01",hoverStart=null,hidden={};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
-function dayLabel(date){return `${date} ${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}`}
+function dayLabel(date){return `${date}（${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`}
 function hasOhlc(r){return [r.o,r.h,r.l,r.c].every(v=>v!=null&&Number.isFinite(v))}
 let rows=rawRows.map(cloneRow);
 function refreshRows(){rows=rawRows.map(cloneRow)}
@@ -456,7 +456,7 @@ function showTip(p){
   if(eventHit){const e=eventHit.event;draw(null,e.date);const x=xScale(e.t);ctx.setLineDash([4,5]);ctx.strokeStyle=eventColor(e.score,.42);ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);tip.className="tip";tip.innerHTML=`<b>${e.label}</b><br>时间：${e.dateLabel}<br>类型：${e.type}<br>${e.description}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-310,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-190,p.y-92))+"px";return}
   const i=nearest(p.x),r=rows[i];draw(i);
   const line=hidden.brent?"ICE Brent K线：-":`ICE Brent K线：${valueText(r)}`;
-  tip.className="tip";tip.innerHTML=`<b>${dayLabel(r.date)}（日）</b><br>${line}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-320,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
+  tip.className="tip";tip.innerHTML=`<b>${dayLabel(r.date)}</b><br>${line}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-320,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
 }
 canvas.addEventListener("click",e=>{const p=pointer(e),startTab=hitStart(p);if(startTab){viewStart=startTab.key;hoverStart=startTab.key;zoom=null;tip.style.display="none";draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];tip.style.display="none";draw()});
 canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitStart(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};tip.style.display="none"});

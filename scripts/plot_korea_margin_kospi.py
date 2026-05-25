@@ -369,7 +369,7 @@ const P=__PAYLOAD__;const rows=P.data.map((d,i)=>({i,date:d[0],f:d[1],k:d[2],kr:
 """
     weekday_tooltip_patch = """
 <script>
-function dayLabel(date){return `${date} ${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}`}
+function dayLabel(date){return `${date}（${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`}
 canvas.addEventListener("mousemove",e=>{
   const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
   if(drag||legendAt(x,y)||!inPlot(x,y)||tip.style.display==="none")return;

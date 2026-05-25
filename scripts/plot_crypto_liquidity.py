@@ -497,8 +497,8 @@ const periodNames={day:"日",week:"周",month:"月"};
 let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="week",hoverPeriod=null,hidden={usdc:true,stable:true,ma5:true,ma30:true,dev300:true,usRate:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
-function dayLabel(date){return `${date} ${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}`}
-function periodTitle(r){return period==="day"?`${dayLabel(r.date)}（日）`:`${r.date}（${periodNames[period]}）`}
+function dayLabel(date){return `${date}（${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`}
+function periodTitle(r){return period==="day"?dayLabel(r.date):`${r.date}（${periodNames[period]}）`}
 function weekKey(t){const d=new Date(t),day=d.getUTCDay(),diff=(day+6)%7,s=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-diff));return s.toISOString().slice(0,10)}
 function monthKey(t){const d=new Date(t);return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`}
 function groupedRows(mode){
