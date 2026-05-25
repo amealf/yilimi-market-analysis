@@ -202,8 +202,11 @@ def fetch_market(market: dict[str, str], retries: int = 3) -> pd.DataFrame:
             frame = frame.dropna(subset=["date"]).sort_values("date")
             frame = frame[(frame["date"].dt.date >= START_DATE) & (frame["date"].dt.date <= END_DATE)]
             frame = frame.drop_duplicates("date", keep="last")
-            close_column = f"{market['key']}_close"
-            return frame[["date", "close"]].rename(columns={"close": close_column})
+            price_columns = ["open", "high", "low", "close"]
+            for column in price_columns:
+                frame[column] = pd.to_numeric(frame[column], errors="coerce")
+            rename_columns = {column: f"{market['key']}_{column}" for column in price_columns}
+            return frame[["date", *price_columns]].rename(columns=rename_columns)
         except Exception as exc:
             last_error = exc
             time.sleep(1.2 * (attempt + 1))
@@ -221,7 +224,14 @@ def build_price_frame(cache_path: Path | None = None) -> pd.DataFrame:
         frames = [fetch_market(market) for market in MARKETS]
     except Exception:
         if cache_path and cache_path.exists():
-            return pd.read_csv(cache_path, parse_dates=["date"])
+            cached = pd.read_csv(cache_path, parse_dates=["date"])
+            for market in MARKETS:
+                close_column = f"{market['key']}_close"
+                for price in ["open", "high", "low"]:
+                    column = f"{market['key']}_{price}"
+                    if column not in cached.columns and close_column in cached.columns:
+                        cached[column] = cached[close_column]
+            return cached
         raise
 
     first_dates = [frame["date"].min() for frame in frames if not frame.empty]
@@ -283,7 +293,10 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
         records.append(
             {
                 "date": row.date.strftime("%Y-%m-%d"),
-                "brent": series_value(row.brent_close, 4),
+                "o": series_value(getattr(row, "brent_open", None), 4),
+                "h": series_value(getattr(row, "brent_high", None), 4),
+                "l": series_value(getattr(row, "brent_low", None), 4),
+                "c": series_value(row.brent_close, 4),
                 "brentDaily": series_value(row.brent_close_daily_pct, 4),
             }
         )
@@ -306,7 +319,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script>if(new URLSearchParams(location.search).get("embed")==="1")document.documentElement.classList.add("is-embed");</script>
-  <title>Brent 原油价格走势</title>
+  <title>Brent 原油价格与事件</title>
   <style>
     html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff;color:#17202a;font-family:"Microsoft YaHei",Arial,sans-serif}
     .page{position:relative;width:100vw;height:100vh;background:#fff}
@@ -328,22 +341,30 @@ const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={brent:"#ED7D31",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071",weekend:"rgba(148,163,184,.055)"};
+const colors={up:"#ff7f0e",down:"#1f77b4",event:"#2563eb",text:"#111827",legend:"#374151",muted:"#4b5563",year:"#eef2f7",frame:"#111827",weekend:"rgba(148,163,184,.055)"};
 const series=[
-  {key:"brent",label:"ICE Brent",color:colors.brent,width:1.15}
+  {key:"brent",label:"ICE Brent K线",color:colors.down,width:1.15}
 ];
 const periodNames={day:"日",week:"周",month:"月"};
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="week",hoverPeriod=null,hidden={};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="day",hoverPeriod=null,hidden={};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
-function hasPrice(r){return series.some(item=>r[item.key]!=null)}
+function hasOhlc(r){return [r.o,r.h,r.l,r.c].every(v=>v!=null&&Number.isFinite(v))}
 function weekKey(t){const d=new Date(t),day=d.getUTCDay(),diff=(day+6)%7,s=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-diff));return s.toISOString().slice(0,10)}
 function monthKey(t){const d=new Date(t);return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`}
+function periodTime(key,mode){return new Date(`${key}${mode==="month"?"-01":""}T00:00:00Z`).getTime()}
 function groupedRows(mode){
   if(mode==="day")return rawRows.map(cloneRow);
   const map=new Map(),keyFn=mode==="week"?weekKey:monthKey;
-  rawRows.forEach(r=>{if(hasPrice(r))map.set(keyFn(r.t),cloneRow(r))});
-  return Array.from(map.values()).sort((a,b)=>a.t-b.t).map((r,i,a)=>({...r,brentDaily:i&&a[i-1].brent&&r.brent!=null?(r.brent/a[i-1].brent-1)*100:null}));
+  rawRows.forEach(r=>{
+    if(!hasOhlc(r))return;
+    const key=keyFn(r.t),current=map.get(key);
+    if(!current){map.set(key,{date:key,t:periodTime(key,mode),o:r.o,h:r.h,l:r.l,c:r.c});return}
+    current.h=Math.max(current.h,r.h);
+    current.l=Math.min(current.l,r.l);
+    current.c=r.c;
+  });
+  return Array.from(map.values()).sort((a,b)=>a.t-b.t).map((r,i,a)=>({...r,brentDaily:i&&a[i-1].c&&r.c!=null?(r.c/a[i-1].c-1)*100:null}));
 }
 let rows=groupedRows(period);
 function refreshRows(){rows=groupedRows(period)}
@@ -351,28 +372,27 @@ function displayEnd(){return rows[rows.length-1].t+DAY*30}
 function defaultRange(){return events.length?[Math.max(rows[0].t,events[0].t-DAY*14),displayEnd()]:[rows[0].t,displayEnd()]}
 function usd(v,d=2){return v==null?"-":"$"+Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})}
 function signedPct(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"")+n.toFixed(2)+"%"}
-function valueText(item,r){return r[item.key]==null?"-":usd(r[item.key])+"，"+signedPct(r.brentDaily)}
-function extent(keys,list=rows){const a=keys.flatMap(k=>list.map(r=>r[k]).filter(v=>v!=null&&Number.isFinite(v)));return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
-function activeKeys(){const keys=series.filter(s=>!hidden[s.key]).map(s=>s.key);return keys.length?keys:["brent"]}
+function valueText(r){return hasOhlc(r)?`开 ${usd(r.o)}　高 ${usd(r.h)}　低 ${usd(r.l)}　收 ${usd(r.c)}　${signedPct(r.brentDaily)}`:"-"}
+function priceExtent(list=rows){const a=[];list.forEach(r=>{if(r.h!=null&&Number.isFinite(r.h))a.push(r.h);if(r.l!=null&&Number.isFinite(r.l))a.push(r.l)});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function currentRange(){return zoom||defaultRange()}
 function visibleRows(){const [t0,t1]=currentRange();const sample=rows.filter(r=>r.t>=t0&&r.t<=t1);return sample.length?sample:rows}
 function resize(){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
 function xScale(t){return box.x0+(t-box.t0)/(box.t1-box.t0)*(box.x1-box.x0)}
 function yPrice(v){return box.y1-(v-box.priceMin)/(box.priceMax-box.priceMin)*(box.y1-box.y0)}
-function gridLine(y){ctx.strokeStyle=colors.grid;ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(box.x0,y);ctx.lineTo(box.x1,y);ctx.stroke()}
 function roundRect(x,y,w,h,r){const rr=Math.min(r,w/2,h/2);ctx.beginPath();ctx.moveTo(x+rr,y);ctx.lineTo(x+w-rr,y);ctx.quadraticCurveTo(x+w,y,x+w,y+rr);ctx.lineTo(x+w,y+h-rr);ctx.quadraticCurveTo(x+w,y+h,x+w-rr,y+h);ctx.lineTo(x+rr,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-rr);ctx.lineTo(x,y+rr);ctx.quadraticCurveTo(x,y,x+rr,y)}
 function niceTicks(min,max,count){const span=Math.max(1e-9,max-min),raw=span/Math.max(1,count),pow=Math.pow(10,Math.floor(Math.log10(raw))),base=[1,2,5,10].find(v=>v*pow>=raw)*pow,start=Math.ceil(min/base)*base,out=[];for(let v=start;v<=max+base*.45;v+=base)out.push(v);return out}
-function drawLegend(x,y,maxX){legendBoxes=[];ctx.font="12px Microsoft YaHei,Arial";let cur=x,rowY=y;series.forEach(item=>{const labelW=ctx.measureText(item.label).width,total=labelW+68,off=hidden[item.key];if(cur>x&&cur+total>maxX){cur=x;rowY+=20}legendBoxes.push({key:item.key,x0:cur-5,y0:rowY-12,x1:cur+total-16,y1:rowY+9});ctx.globalAlpha=off?.28:1;ctx.strokeStyle=off?"rgba(82,96,113,.45)":item.color;ctx.fillStyle=off?"rgba(82,96,113,.58)":colors.text;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cur,rowY);ctx.lineTo(cur+28,rowY);ctx.stroke();ctx.textAlign="left";ctx.fillText(item.label,cur+36,rowY+4);ctx.globalAlpha=1;cur+=total})}
-function drawPeriodTabs(x,y){periodBoxes=[];const labels=[["day","日"],["week","周"],["month","月"]];ctx.font="12px Microsoft YaHei,Arial";labels.forEach(([key,label],i)=>{const w=34,h=20,left=x+i*(w+6),active=period===key,hovered=hoverPeriod===key;periodBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});ctx.strokeStyle=active?"#60a5fa":hovered?"#93c5fd":"rgba(71,85,105,.42)";ctx.lineWidth=active||hovered?1.35:.9;roundRect(left,y,w,h,6);ctx.stroke();ctx.fillStyle=hovered?"#17202a":active?"#17202a":"rgba(71,85,105,.58)";ctx.textAlign="center";ctx.fillText(label,left+w/2,y+14)});ctx.lineWidth=1}
+function drawLegend(x,y,maxX){legendBoxes=[];ctx.font="13px Microsoft YaHei,Arial";let cur=x,rowY=y;series.forEach(item=>{const labelW=ctx.measureText(item.label).width,total=labelW+74,off=hidden[item.key];if(cur>x&&cur+total>maxX){cur=x;rowY+=22}legendBoxes.push({key:item.key,x0:cur-5,y0:rowY-14,x1:cur+total-16,y1:rowY+10});ctx.globalAlpha=off?.28:1;ctx.strokeStyle=off?"rgba(82,96,113,.45)":colors.down;ctx.fillStyle=off?"rgba(82,96,113,.58)":"rgba(31,119,180,.18)";ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(cur+14,rowY-9);ctx.lineTo(cur+14,rowY+8);ctx.stroke();ctx.strokeRect(cur+8,rowY-4,12,8);ctx.fillRect(cur+8,rowY-4,12,8);ctx.fillStyle=off?"rgba(82,96,113,.58)":colors.legend;ctx.textAlign="left";ctx.fillText(item.label,cur+32,rowY+4);ctx.globalAlpha=1;cur+=total})}
+function drawPeriodTabs(x,y){periodBoxes=[];const labels=[["day","日"],["week","周"],["month","月"]];ctx.font="12px Microsoft YaHei,Arial";labels.forEach(([key,label],i)=>{const w=34,h=20,left=x+i*(w+6),active=period===key,hovered=hoverPeriod===key;periodBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});ctx.strokeStyle=active?"#1f77b4":hovered?"#7bb8f8":"rgba(71,85,105,.42)";ctx.lineWidth=active||hovered?1.35:.9;roundRect(left,y,w,h,5);ctx.stroke();ctx.fillStyle=hovered||active?colors.text:"rgba(71,85,105,.68)";ctx.textAlign="center";ctx.fillText(label,left+w/2,y+14)});ctx.lineWidth=1}
 function hitPeriod(p){return periodBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
-function drawAxes(){niceTicks(box.priceMin,box.priceMax,7).forEach(v=>{const y=yPrice(v);gridLine(y);ctx.fillStyle=colors.text;ctx.textAlign="right";ctx.fillText(usd(v,0),box.x0-9,y+4)})}
+function drawAxes(){niceTicks(box.priceMin,box.priceMax,7).forEach(v=>{const y=yPrice(v);ctx.fillStyle=colors.text;ctx.textAlign="right";ctx.fillText(usd(v,0),box.x0-9,y+4)})}
 function drawWeekends(){if(period!=="day")return;const start=new Date(box.t0);start.setUTCHours(0,0,0,0);for(let t=start.getTime();t<=box.t1;t+=DAY){const d=new Date(t).getUTCDay();if(d!==6&&d!==0)continue;const x0=xScale(t),x1=xScale(t+DAY);ctx.fillStyle=colors.weekend;ctx.fillRect(x0,box.y0,Math.max(1,x1-x0),box.y1-box.y0)}}
-function drawPath(item){if(hidden[item.key])return;ctx.beginPath();let open=false;rows.forEach(r=>{const v=r[item.key];if(v==null||!Number.isFinite(v)){open=false;return}const x=xScale(r.t),y=yPrice(v);if(!open){ctx.moveTo(x,y);open=true}else ctx.lineTo(x,y)});ctx.strokeStyle=item.color;ctx.lineWidth=item.width;ctx.stroke()}
+function candleWidth(){const visible=rows.filter(r=>r.t>=box.t0&&r.t<=box.t1).length||1,byCount=(box.x1-box.x0)/visible*.56,byDay=(box.x1-box.x0)/Math.max(1,(box.t1-box.t0)/DAY)*.7;return Math.max(period==="day"?2:5,Math.min(period==="day"?10:22,Math.min(byCount,byDay)))}
+function drawCandles(){if(hidden.brent)return;const bodyW=candleWidth();rows.forEach(r=>{if(!hasOhlc(r)||r.t<box.t0||r.t>box.t1)return;const x=xScale(r.t),up=r.c>=r.o,color=up?colors.up:colors.down,yH=yPrice(r.h),yL=yPrice(r.l),yO=yPrice(r.o),yC=yPrice(r.c),top=Math.min(yO,yC),height=Math.max(1.5,Math.abs(yC-yO));ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,yH);ctx.lineTo(x,yL);ctx.stroke();ctx.fillStyle=up?"rgba(255,255,255,.96)":color;ctx.strokeStyle=color;ctx.lineWidth=1.05;ctx.fillRect(x-bodyW/2,top,bodyW,height);ctx.strokeRect(x-bodyW/2,top,bodyW,height)})}
 function drawEvents(activeEventDate=null){
   eventBoxes=[];
   const laneCount=4,visible=events.filter(e=>e.t>=box.t0&&e.t<=box.t1).sort((a,b)=>a.t-b.t);
   visible.forEach((event,index)=>{
-    const active=activeEventDate===event.date,x=xScale(event.t),lane=index%laneCount,y=box.y1-14-lane*14,r=active?4.8:3.8;
+    const active=activeEventDate===event.date,x=xScale(event.t),lane=index%laneCount,y=box.y1-18-lane*17,r=active?6.8:5.6;
     ctx.save();
     ctx.strokeStyle=active?"rgba(37,99,235,.42)":"rgba(147,197,253,.22)";
     ctx.lineWidth=active?1.1:.8;
@@ -382,7 +402,7 @@ function drawEvents(activeEventDate=null){
     ctx.lineWidth=1.4;
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.stroke();
     ctx.restore();
-    eventBoxes.push({event,x0:x-8,y0:y-8,x1:x+8,y1:y+8});
+    eventBoxes.push({event,x0:x-11,y0:y-11,x1:x+11,y1:y+11});
   });
 }
 function draw(active,eventDate=null){
@@ -390,22 +410,22 @@ function draw(active,eventDate=null){
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035);
   const axisLeft=76,axisRight=76,titleY=outer+18,legendY=outer+56,xLabelGap=isEmbed?35:38;
   const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+94,y1=h-outer-xLabelGap;
-  const [t0,t1]=currentRange(),sample=visibleRows(),[min0,max0]=extent(activeKeys(),sample),pad=Math.max((max0-min0)*.09,4);
+  const [t0,t1]=currentRange(),sample=visibleRows(),[min0,max0]=priceExtent(sample),pad=Math.max((max0-min0)*.09,4);
   box={x0,x1,y0,y1,t0,t1,priceMin:min0-pad,priceMax:max0+pad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   const titleSize=isEmbed&&w<760?18:21,tabY=isEmbed&&w<760?legendY-14:titleY-15;
-  ctx.fillStyle=colors.text;ctx.font=`700 ${titleSize}px Microsoft YaHei,Arial`;ctx.textAlign="center";ctx.fillText("Brent 原油价格走势",w/2,titleY);
+  ctx.fillStyle=colors.text;ctx.font=`700 ${titleSize}px Microsoft YaHei,Arial`;ctx.textAlign="center";ctx.fillText("Brent 原油价格与事件",w/2,titleY);
   drawLegend(x0,legendY,x1);drawPeriodTabs(x1-112,tabY);
   drawWeekends();
   const startY=new Date(box.t0).getUTCFullYear(),endY=new Date(box.t1).getUTCFullYear();
   for(let year=startY;year<=endY;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.strokeStyle="#edf2f7";ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
   if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：北京时间 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
   drawAxes();
-  ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
-  ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);ctx.restore();
+  ctx.strokeStyle=colors.frame;ctx.lineWidth=1;ctx.strokeRect(x0,y0,x1-x0,y1-y0);
+  ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();drawCandles();ctx.restore();
   drawEvents(eventDate);
   ctx.fillStyle=colors.text;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("美元 / 桶",0,0);ctx.restore();
-  if(active!=null){const r=rows[active],x=xScale(r.t);ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.62)";ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);series.forEach(item=>{const v=r[item.key];if(hidden[item.key]||v==null)return;ctx.fillStyle="#fff";ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,yPrice(v),3.3,0,Math.PI*2);ctx.fill();ctx.stroke()})}
+  if(active!=null){const r=rows[active],x=xScale(r.t);ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(31,41,55,.42)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);if(hasOhlc(r)&&!hidden.brent){const color=r.c>=r.o?colors.up:colors.down;ctx.fillStyle="#fff";ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,yPrice(r.c),3.6,0,Math.PI*2);ctx.fill();ctx.stroke()}}
 }
 function clampX(x){return Math.max(box.x0,Math.min(box.x1,x))}
 function pointer(e){const rect=canvas.getBoundingClientRect();return{x:e.clientX-rect.left,y:e.clientY-rect.top,rect}}
@@ -413,15 +433,15 @@ function inPlot(p){return p.x>=box.x0&&p.x<=box.x1&&p.y>=box.y0&&p.y<=box.y1}
 function timeAtX(x){return box.t0+(clampX(x)-box.x0)/(box.x1-box.x0)*(box.t1-box.t0)}
 function hitLegend(p){return legendBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function hitEvent(p){return eventBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
-function nearest(mx){const t=timeAtX(mx);let l=0,r=rows.length-1;while(l<r){const m=(l+r)>>1;if(rows[m].t<t)l=m+1;else r=m}if(l>0&&Math.abs(rows[l-1].t-t)<Math.abs(rows[l].t-t))l--;return l}
+function nearest(mx){const source=rows.filter(hasOhlc);if(!source.length)return 0;const t=timeAtX(mx);let l=0,r=source.length-1;while(l<r){const m=(l+r)>>1;if(source[m].t<t)l=m+1;else r=m}if(l>0&&Math.abs(source[l-1].t-t)<Math.abs(source[l].t-t))l--;return rows.indexOf(source[l])}
 function drawSelection(){if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1),left=Math.min(x0,x1),width=Math.abs(x1-x0);if(width<3)return;ctx.fillStyle="rgba(111,74,168,.10)";ctx.strokeStyle="rgba(111,74,168,.55)";ctx.lineWidth=1;ctx.fillRect(left,box.y0,width,box.y1-box.y0);ctx.strokeRect(left,box.y0,width,box.y1-box.y0)}
 function showTip(p){
   if(!inPlot(p)){tip.style.display="none";draw();return}
   const eventHit=hitEvent(p);
   if(eventHit){const e=eventHit.event;draw(null,e.date);const x=xScale(e.t);ctx.setLineDash([4,5]);ctx.strokeStyle="rgba(37,99,235,.42)";ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);tip.className="tip";tip.innerHTML=`<b>${e.label}</b><br>时间：${e.dateLabel}<br>类型：${e.type}<br>${e.description}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-310,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-190,p.y-92))+"px";return}
   const i=nearest(p.x),r=rows[i];draw(i);
-  const lines=series.filter(item=>!hidden[item.key]).map(item=>`${item.label}：${valueText(item,r)}`);
-  tip.className="tip";tip.innerHTML=`<b>${r.date}（${periodNames[period]}）</b><br>${lines.join("<br>")}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-250,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
+  const line=hidden.brent?"ICE Brent K线：-":`ICE Brent K线：${valueText(r)}`;
+  tip.className="tip";tip.innerHTML=`<b>${r.date}（${periodNames[period]}）</b><br>${line}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-320,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
 }
 canvas.addEventListener("click",e=>{const p=pointer(e),tab=hitPeriod(p);if(tab){period=tab.key;hoverPeriod=tab.key;zoom=null;tip.style.display="none";draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];tip.style.display="none";draw()});
 canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitPeriod(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};tip.style.display="none"});

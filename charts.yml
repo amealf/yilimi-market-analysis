@@ -43,8 +43,8 @@ charts:
     output_csv: data/other-markets/korea-margin-kospi.csv
   - id: oil-price-events
     category: other-markets
-    title: Brent 原油价格走势
-    description: ICE Brent 连续合约日线；周末和无交易日保留空白，方便标注事件。
+    title: Brent 原油价格与事件
+    description: ICE Brent 连续合约K线；周末和无交易日保留空白，方便标注事件。
     builder: oil_price_events
     module: plot_oil_price_events
     output_html: charts/other-markets/oil-price-events.html
