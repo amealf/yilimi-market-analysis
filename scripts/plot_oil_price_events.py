@@ -201,6 +201,30 @@ OIL_EVENTS: list[dict[str, str]] = [
         "score": "0.85",
         "description": "协议希望扩散到外汇、股市和航运。霍尔木兹重开希望带动风险偏好；同日两艘LNG船和一艘装载伊拉克Basrah原油的VLCC离开海湾，显示部分通航恢复。",
     },
+    {
+        "date": "2026-05-26",
+        "dateLabel": "2026-05-26 00:00 UTC",
+        "label": "美军再打击",
+        "type": "停火受挫",
+        "score": "-0.70",
+        "description": "美军在伊朗南部实施打击，削弱市场对周末和平框架和霍尔木兹重开的预期。伊朗称美国违反停火，Rubio称谈判可能还需要几天。",
+    },
+    {
+        "date": "2026-05-27",
+        "dateLabel": "2026-05-27 20:00 UTC",
+        "label": "共管遭否认",
+        "type": "谈判受阻",
+        "score": "-0.55",
+        "description": "川普否认伊朗和阿曼共同管理霍尔木兹的框架设想，并称协议仍未完成；美国随后制裁伊朗试图控制海峡航运的新机构，市场重新计入通航谈判受阻风险。",
+    },
+    {
+        "date": "2026-05-28",
+        "dateLabel": "2026-05-28 01:20 UTC",
+        "label": "美伊互袭",
+        "type": "复战升级",
+        "score": "-0.85",
+        "description": "伊朗革命卫队称在美军袭击阿巴斯港附近目标后报复打击美军基地；双方再度交火，霍尔木兹通航和停火前景继续承压。",
+    },
 ]
 MARKETS = [
     {
@@ -212,7 +236,7 @@ MARKETS = [
 ]
 
 
-def fetch_market(market: dict[str, str], retries: int = 3) -> pd.DataFrame:
+def fetch_market(market: dict[str, str], retries: int = 6) -> pd.DataFrame:
     last_error: Exception | None = None
     for attempt in range(retries):
         try:
