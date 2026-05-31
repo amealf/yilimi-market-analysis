@@ -13,6 +13,8 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
+from mobile_chart_support import add_canvas_mobile_support
+
 
 START_DATE = date(2015, 8, 7)
 END_DATE = date.today()
@@ -410,6 +412,7 @@ resize();
 </body>
 </html>
 """
+    html_text = add_canvas_mobile_support(html_text)
     output_html.write_text(html_text.replace("__PAYLOAD__", payload), encoding="utf-8")
 
 
@@ -432,8 +435,6 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
                 "usdt": series_value(row.usdt_b, 4),
                 "usdc": series_value(row.usdc_b, 4),
                 "stable": series_value(row.stable_b, 4),
-                "ma5": series_value(row.usdt_ma_5d_b, 4),
-                "ma30": series_value(row.usdt_ma_30d_b, 4),
                 "dev300": series_value(row.usdt_delta_dev_300d_b, 4),
                 "usRate": series_value(row.us_rate, 4),
                 "transmissionWeek": series_value(row.transmission_week, 4),
@@ -481,20 +482,18 @@ const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.85)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",ma5:"#2ca02c",ma30:"#d62728",dev300:"#111827",usRate:"#9467bd",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",dev300:"#111827",usRate:"rgba(148,103,189,.70)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const series=[
   {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15},
   {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05},
   {key:"usdt",label:"USDT发行量",color:colors.usdt,scale:"supply",width:1.15},
   {key:"usdc",label:"USDC发行量",color:colors.usdc,scale:"supply",width:1.15},
   {key:"stable",label:"USDT+USDC",color:colors.stable,scale:"supply",width:1.1},
-  {key:"ma5",label:"USDT 5D均线",color:colors.ma5,scale:"supply",width:.95},
-  {key:"ma30",label:"USDT 30D均线",color:colors.ma30,scale:"supply",width:1.05},
   {key:"dev300",label:"300D前均差",color:colors.dev300,scale:"supply",width:.85},
   {key:"usRate",label:"美国30Y利率",color:colors.usRate,scale:"rate",width:.95}
 ];
 const periodNames={day:"日",week:"周",month:"月"};
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="week",hoverPeriod=null,hidden={usdc:true,stable:true,ma5:true,ma30:true,dev300:true,usRate:true};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="day",hoverPeriod=null,hidden={usdt:true,usdc:true,dev300:true,usRate:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function dayLabel(date){return `${date}（${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`}
@@ -567,7 +566,7 @@ function drawPeriodTabs(x,y){
 }
 function hitPeriod(p){return periodBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawAxes(){
-  [10,100,1000,10000,100000].forEach(v=>{if(Math.log(v)<box.ratioMin||Math.log(v)>box.ratioMax)return;const y=yRatio(v);gridLine(y);ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(multiple(v),box.x0-9,y+4)});
+  [10,100,1000,10000,100000].forEach(v=>{if(Math.log(v)<box.ratioMin||Math.log(v)>box.ratioMax)return;const y=yRatio(v);ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(multiple(v),box.x0-9,y+4)});
   [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
 }
 function drawPath(item){
@@ -610,14 +609,14 @@ function draw(active,eventDate=null){
   const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+94,y1=h-outer-xLabelGap;
   const [t0,t1]=currentRange(),sample=visibleRows();
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample);
-  const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable","ma5","ma30","dev300"]),sample);
+  const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable","dev300"]),sample);
   const [rateMin0,rateMax0]=extent(["usRate"],sample),ratePad=Math.max((rateMax0-rateMin0)*.18,.15);
   box={x0,x1,y0,y1,t0,t1,ratioMin:Math.log(Math.max(ratioMin0*.75,.01)),ratioMax:Math.log(ratioMax0*1.18),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1),rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   ctx.fillStyle=colors.text;ctx.font="700 21px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText("USDT发行量 与 BTC/ETH",w/2,titleY);
   drawLegend(x0,legendY,x1);drawPeriodTabs(x1-112,titleY-15);
-  const startY=new Date(box.t0).getUTCFullYear(),endY=new Date(box.t1).getUTCFullYear();
-  for(let year=startY;year<=endY;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.strokeStyle="#edf2f7";ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
+  const startDate=new Date(box.t0),endDate=new Date(box.t1),cursor=new Date(Date.UTC(startDate.getUTCFullYear(),startDate.getUTCMonth(),1)),endMonth=new Date(Date.UTC(endDate.getUTCFullYear(),endDate.getUTCMonth(),1));
+  for(;cursor<=endMonth;cursor.setUTCMonth(cursor.getUTCMonth()+1)){const x=xScale(cursor.getTime());if(x<x0||x>x1)continue;ctx.setLineDash([3,6]);ctx.strokeStyle="rgba(148,163,184,.28)";ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);if(cursor.getUTCMonth()===0){ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(cursor.getUTCFullYear(),x,y1+(isEmbed?23:28))}}
   if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：北京时间 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
@@ -665,4 +664,5 @@ resize();
 </body>
 </html>
 """
+    html_text = add_canvas_mobile_support(html_text)
     output_html.write_text(html_text.replace("__PAYLOAD__", payload), encoding="utf-8")
