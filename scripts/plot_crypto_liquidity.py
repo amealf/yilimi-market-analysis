@@ -26,7 +26,6 @@ PRICE_SOURCE = "https://min-api.cryptocompare.com/data/v2/histoday"
 STABLECOIN_SOURCE = "https://stablecoins.llama.fi/stablecoincharts/all"
 FRED_CSV_SOURCE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 FARSIDE_BTC_ETF_FLOW_SOURCE = "https://r.jina.ai/http://r.jina.ai/http://https://farside.co.uk/bitcoin-etf-flow-all-data/"
-US_30Y_RATE_CACHE = Path(__file__).resolve().parents[1] / "data" / "global_30y_bond_daily" / "cache" / "US.csv"
 MARKET_EVENTS = [
     {
         "date": "2020-03-15",
@@ -293,25 +292,6 @@ def fetch_btc_etf_total_flow(start: date, end: date) -> pd.Series:
     return frame.drop_duplicates("date").sort_values("date").set_index("date")["btc_etf_flow"]
 
 
-def load_us_30y_rate(start: date, end: date) -> pd.Series:
-    if not US_30Y_RATE_CACHE.exists():
-        return pd.Series(dtype="float64", name="us_rate")
-
-    frame = pd.read_csv(US_30Y_RATE_CACHE, parse_dates=["date"])
-    frame["us_rate"] = pd.to_numeric(frame["close"], errors="coerce")
-    frame = frame.loc[(frame["date"] >= pd.Timestamp(start)) & (frame["date"] <= pd.Timestamp(end)), ["date", "us_rate"]]
-    return frame.drop_duplicates("date").sort_values("date").set_index("date")["us_rate"]
-
-
-def attach_us_rate(data: pd.DataFrame) -> pd.DataFrame:
-    has_date_column = "date" in data.columns
-    frame = data.set_index("date") if has_date_column else data.copy()
-    frame = frame.drop(columns=["us_rate"], errors="ignore")
-    frame = frame.join(load_us_30y_rate(START_DATE, END_DATE))
-    frame["us_rate"] = frame["us_rate"].ffill()
-    return frame.reset_index() if has_date_column else frame
-
-
 def normalize_optional_macro_columns(data: pd.DataFrame) -> None:
     for column in ["us_2y"]:
         if column not in data.columns:
@@ -401,12 +381,11 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
             cached = pd.read_csv(cache_path, parse_dates=["date"])
             if "stable_b" not in cached.columns:
                 cached["stable_b"] = cached[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
-            cached = attach_us_rate(cached)
             normalize_optional_macro_columns(cached)
             normalize_btc_etf_flow_column(cached)
             normalize_price_ohlc_columns(cached)
             add_usdt_indicators(cached)
-            return cached.drop(columns=["dxy"], errors="ignore")
+            return cached.drop(columns=["dxy", "us_rate"], errors="ignore")
         raise
 
     macro_series = fetch_optional_macro_series()
@@ -419,10 +398,9 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
             data = data.join(macro)
     if btc_etf_flow is not None:
         data = data.join(btc_etf_flow)
-    data = attach_us_rate(data)
     normalize_optional_macro_columns(data)
     normalize_btc_etf_flow_column(data)
-    data = data.drop(columns=["dxy"], errors="ignore")
+    data = data.drop(columns=["dxy", "us_rate"], errors="ignore")
     for column in ["BTC", "ETH", "USDT", "USDC"]:
         data[column] = data[column].ffill()
     normalize_price_ohlc_columns(data)
@@ -602,7 +580,6 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
                 "usdt": series_value(row.usdt_b, 4),
                 "usdc": series_value(row.usdc_b, 4),
                 "stable": series_value(row.stable_b, 4),
-                "usRate": series_value(row.us_rate, 4),
                 "us2y": series_value(row.us_2y, 4),
                 "btcEtfFlow": series_value(row.btc_etf_flow, 2),
                 "transmissionWeek": series_value(row.transmission_week, 4),
@@ -616,7 +593,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
             "meta": meta,
             "events": MARKET_EVENTS,
             "generatedAt": generated_at,
-            "dataSources": "CryptoCompare、DefiLlama、CNBC/TradingView、FRED、Farside Investors",
+            "dataSources": "CryptoCompare、DefiLlama、FRED、Farside Investors",
         },
         ensure_ascii=False,
         separators=(",", ":"),
@@ -650,7 +627,7 @@ const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",candle:"rgba(17,24,39,.50)",candleSoft:"rgba(17,24,39,.28)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",usRate:"rgba(148,103,189,.70)",us2y:"rgba(248,113,113,.72)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",candle:"rgba(17,24,39,.50)",candleSoft:"rgba(17,24,39,.28)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us2y:"rgba(248,113,113,.72)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const series=[
   {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15},
   {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05},
@@ -659,12 +636,11 @@ const series=[
   {key:"usdt",label:"USDT发行量",color:colors.usdt,scale:"supply",width:1.15},
   {key:"usdc",label:"USDC发行量",color:colors.usdc,scale:"supply",width:1.15},
   {key:"stable",label:"USDT+USDC",color:colors.stable,scale:"supply",width:1.1},
-  {key:"usRate",label:"美国30Y利率",color:colors.usRate,scale:"rate",width:.95},
   {key:"us2y",label:"美国2Y利率",color:colors.us2y,scale:"rate",width:.95},
   {key:"btcEtfFlow",label:"BTC ETF累计净流入",color:colors.btcEtfFlow,scale:"etf",width:1.05}
 ];
 const periodNames={day:"日",week:"周",month:"月",quarter:"季"};
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="day",hoverPeriod=null,hidden={btcCandle:true,ethCandle:true,usdt:true,usdc:true,usRate:true,us2y:true,btcEtfFlow:true};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="day",hoverPeriod=null,hidden={btcCandle:true,ethCandle:true,usdt:true,usdc:true,us2y:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function finite(v){return v!=null&&Number.isFinite(v)}
@@ -820,7 +796,7 @@ function draw(active,eventDate=null){
   const [t0,t1]=currentRange(),sample=visibleRows();
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample);
   const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable"]),sample);
-  const [rateMin0,rateMax0]=extent(activeKeys("rate",["usRate","us2y"]),sample),ratePad=Math.max((rateMax0-rateMin0)*.18,.15);
+  const [rateMin0,rateMax0]=extent(activeKeys("rate",["us2y"]),sample),ratePad=Math.max((rateMax0-rateMin0)*.18,.15);
   const [etfMin0,etfMax0]=extent(activeKeys("etf",["btcEtfFlow"]),sample),etfPad=Math.max((etfMax0-etfMin0)*.18,100);
   box={x0,x1,y0,y1,t0,t1,ratioMin:Math.log(Math.max(ratioMin0*.75,.01)),ratioMax:Math.log(ratioMax0*1.18),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1),rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad,etfMin:etfMin0-etfPad,etfMax:etfMax0+etfPad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
