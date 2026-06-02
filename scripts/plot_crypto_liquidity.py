@@ -9,7 +9,7 @@ from http.client import IncompleteRead, RemoteDisconnected
 from io import StringIO
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
@@ -25,7 +25,6 @@ DISPLAY_START = pd.Timestamp("2018-09-01")
 PRICE_SOURCE = "https://min-api.cryptocompare.com/data/v2/histoday"
 STABLECOIN_SOURCE = "https://stablecoins.llama.fi/stablecoincharts/all"
 FRED_CSV_SOURCE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
-YAHOO_CHART_SOURCE = "https://query1.finance.yahoo.com/v8/finance/chart"
 FARSIDE_BTC_ETF_FLOW_SOURCE = "https://r.jina.ai/http://r.jina.ai/http://https://farside.co.uk/bitcoin-etf-flow-all-data/"
 US_30Y_RATE_CACHE = Path(__file__).resolve().parents[1] / "data" / "global_30y_bond_daily" / "cache" / "US.csv"
 MARKET_EVENTS = [
@@ -237,34 +236,6 @@ def fetch_fred_rate(series_id: str, column: str, start: date, end: date) -> pd.S
     return frame.drop_duplicates("date").sort_values("date").set_index("date")[column]
 
 
-def fetch_yahoo_daily(symbol: str, column: str, start: date, end: date) -> pd.Series:
-    query = urlencode(
-        {
-            "period1": to_timestamp(start),
-            "period2": to_timestamp(end) + 86400,
-            "interval": "1d",
-            "events": "history",
-        }
-    )
-    payload = request_json(f"{YAHOO_CHART_SOURCE}/{quote(symbol, safe='')}?{query}")
-    result = payload.get("chart", {}).get("result", []) if isinstance(payload, dict) else []
-    if not result:
-        raise RuntimeError(f"{symbol} payload has unexpected shape")
-
-    first_result = result[0]
-    timestamps = first_result.get("timestamp", [])
-    quote_rows = first_result.get("indicators", {}).get("quote", [])
-    closes = quote_rows[0].get("close", []) if quote_rows else []
-    if not timestamps or not closes:
-        raise RuntimeError(f"{symbol} data is empty")
-
-    frame = pd.DataFrame({"time": timestamps, column: closes})
-    frame["date"] = pd.to_datetime(frame["time"], unit="s", utc=True).dt.tz_localize(None).dt.normalize()
-    frame[column] = pd.to_numeric(frame[column], errors="coerce")
-    frame = frame.loc[(frame["date"] >= pd.Timestamp(start)) & (frame["date"] <= pd.Timestamp(end)), ["date", column]]
-    return frame.drop_duplicates("date").sort_values("date").set_index("date")[column]
-
-
 def parse_farside_value(value: str) -> float | None:
     value = value.strip()
     if value == "-":
@@ -283,23 +254,38 @@ def fetch_btc_etf_total_flow(start: date, end: date) -> pd.Series:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     date_pattern = re.compile(r"^\d{2} [A-Z][a-z]{2} \d{4}$")
     rows: list[dict[str, object]] = []
-    for index, line in enumerate(lines):
-        if not date_pattern.match(line):
+    for line in lines:
+        if not line.startswith("|"):
             continue
-        values = lines[index + 1 : index + 14]
-        if len(values) < 13:
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) < 14 or not date_pattern.match(cells[0]):
             continue
         rows.append(
             {
-                "date": pd.to_datetime(line, format="%d %b %Y", errors="coerce"),
-                "btc_etf_flow": parse_farside_value(values[-1]),
+                "date": pd.to_datetime(cells[0], format="%d %b %Y", errors="coerce"),
+                "btc_etf_flow": parse_farside_value(cells[-1]),
             }
         )
+    if not rows:
+        for index, line in enumerate(lines):
+            if not date_pattern.match(line):
+                continue
+            values = lines[index + 1 : index + 14]
+            if len(values) < 13:
+                continue
+            rows.append(
+                {
+                    "date": pd.to_datetime(line, format="%d %b %Y", errors="coerce"),
+                    "btc_etf_flow": parse_farside_value(values[-1]),
+                }
+            )
+    if not rows:
+        raise RuntimeError("BTC ETF flow data is empty")
 
     frame = pd.DataFrame(rows).dropna(subset=["date"])
     if frame.empty:
         raise RuntimeError("BTC ETF flow data is empty")
-    frame["btc_etf_flow"] = pd.to_numeric(frame["btc_etf_flow"], errors="coerce")
+    frame["btc_etf_flow"] = pd.to_numeric(frame["btc_etf_flow"], errors="coerce").fillna(0).cumsum()
     frame = frame.loc[
         (frame["date"] >= pd.Timestamp(start)) & (frame["date"] <= pd.Timestamp(end)),
         ["date", "btc_etf_flow"],
@@ -327,7 +313,7 @@ def attach_us_rate(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def normalize_optional_macro_columns(data: pd.DataFrame) -> None:
-    for column in ["us_2y", "dxy"]:
+    for column in ["us_2y"]:
         if column not in data.columns:
             data[column] = pd.NA
         data[column] = pd.to_numeric(data[column], errors="coerce").ffill()
@@ -336,7 +322,7 @@ def normalize_optional_macro_columns(data: pd.DataFrame) -> None:
 def normalize_btc_etf_flow_column(data: pd.DataFrame) -> None:
     if "btc_etf_flow" not in data.columns:
         data["btc_etf_flow"] = pd.NA
-    data["btc_etf_flow"] = pd.to_numeric(data["btc_etf_flow"], errors="coerce")
+    data["btc_etf_flow"] = pd.to_numeric(data["btc_etf_flow"], errors="coerce").ffill()
 
 
 def normalize_price_ohlc_columns(data: pd.DataFrame) -> None:
@@ -352,13 +338,9 @@ def normalize_price_ohlc_columns(data: pd.DataFrame) -> None:
 
 
 def fetch_optional_macro_series() -> dict[str, pd.Series | None]:
-    series: dict[str, pd.Series | None] = {"us_2y": None, "dxy": None}
+    series: dict[str, pd.Series | None] = {"us_2y": None}
     try:
         series["us_2y"] = fetch_fred_rate("DGS2", "us_2y", START_DATE, END_DATE)
-    except Exception:
-        pass
-    try:
-        series["dxy"] = fetch_yahoo_daily("DX-Y.NYB", "dxy", START_DATE, END_DATE)
     except Exception:
         pass
     return series
@@ -424,7 +406,7 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
             normalize_btc_etf_flow_column(cached)
             normalize_price_ohlc_columns(cached)
             add_usdt_indicators(cached)
-            return cached
+            return cached.drop(columns=["dxy"], errors="ignore")
         raise
 
     macro_series = fetch_optional_macro_series()
@@ -440,6 +422,7 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
     data = attach_us_rate(data)
     normalize_optional_macro_columns(data)
     normalize_btc_etf_flow_column(data)
+    data = data.drop(columns=["dxy"], errors="ignore")
     for column in ["BTC", "ETH", "USDT", "USDC"]:
         data[column] = data[column].ffill()
     normalize_price_ohlc_columns(data)
@@ -621,7 +604,6 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
                 "stable": series_value(row.stable_b, 4),
                 "usRate": series_value(row.us_rate, 4),
                 "us2y": series_value(row.us_2y, 4),
-                "dxy": series_value(row.dxy, 4),
                 "btcEtfFlow": series_value(row.btc_etf_flow, 2),
                 "transmissionWeek": series_value(row.transmission_week, 4),
                 "transmissionMonth": series_value(row.transmission_month, 4),
@@ -634,7 +616,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
             "meta": meta,
             "events": MARKET_EVENTS,
             "generatedAt": generated_at,
-            "dataSources": "CryptoCompare、DefiLlama、CNBC/TradingView、FRED、Yahoo Finance、Farside Investors",
+            "dataSources": "CryptoCompare、DefiLlama、CNBC/TradingView、FRED、Farside Investors",
         },
         ensure_ascii=False,
         separators=(",", ":"),
@@ -668,7 +650,7 @@ const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",candle:"rgba(17,24,39,.50)",candleSoft:"rgba(17,24,39,.28)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",usRate:"rgba(148,103,189,.70)",us2y:"rgba(248,113,113,.72)",dxy:"rgba(192,80,77,.70)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",candle:"rgba(17,24,39,.50)",candleSoft:"rgba(17,24,39,.28)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",usRate:"rgba(148,103,189,.70)",us2y:"rgba(248,113,113,.72)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const series=[
   {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15},
   {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05},
@@ -679,11 +661,10 @@ const series=[
   {key:"stable",label:"USDT+USDC",color:colors.stable,scale:"supply",width:1.1},
   {key:"usRate",label:"美国30Y利率",color:colors.usRate,scale:"rate",width:.95},
   {key:"us2y",label:"美国2Y利率",color:colors.us2y,scale:"rate",width:.95},
-  {key:"dxy",label:"美元指数",color:colors.dxy,scale:"dxy",width:.95},
-  {key:"btcEtfFlow",label:"BTC ETF总净流入",color:colors.btcEtfFlow,scale:"etf",width:1.05}
+  {key:"btcEtfFlow",label:"BTC ETF累计净流入",color:colors.btcEtfFlow,scale:"etf",width:1.05}
 ];
 const periodNames={day:"日",week:"周",month:"月",quarter:"季"};
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="day",hoverPeriod=null,hidden={btcCandle:true,ethCandle:true,usdt:true,usdc:true,usRate:true,us2y:true,dxy:true,btcEtfFlow:true};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="day",hoverPeriod=null,hidden={btcCandle:true,ethCandle:true,usdt:true,usdc:true,usRate:true,us2y:true,btcEtfFlow:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function finite(v){return v!=null&&Number.isFinite(v)}
@@ -700,10 +681,6 @@ function groupOhlc(group,last,key){
   last[highKey]=highs.length?Math.max(...highs):last[key];
   last[lowKey]=lows.length?Math.min(...lows):last[key];
 }
-function groupSum(group,last,key){
-  const values=group.map(r=>r[key]).filter(finite);
-  last[key]=values.length?values.reduce((a,b)=>a+b,0):null;
-}
 function groupedRows(mode){
   if(mode==="day")return rawRows.map(cloneRow);
   const groups=new Map(),keyFn=mode==="week"?weekKey:mode==="month"?monthKey:quarterKey;
@@ -711,7 +688,6 @@ function groupedRows(mode){
   return Array.from(groups.values()).map(group=>{
     const last=cloneRow(group[group.length-1]);
     groupOhlc(group,last,"btc");groupOhlc(group,last,"eth");
-    groupSum(group,last,"btcEtfFlow");
     return last;
   }).sort((a,b)=>a.t-b.t).map((r,i,a)=>({...r,btcDaily:i&&a[i-1].btc&&r.btc!=null?(r.btc/a[i-1].btc-1)*100:null,ethDaily:i&&a[i-1].eth&&r.eth!=null?(r.eth/a[i-1].eth-1)*100:null}));
 }
@@ -723,14 +699,13 @@ function b(v){return v==null?"-":Number(v).toFixed(2)+"B"}
 function signedB(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"")+n.toFixed(2)+"B"}
 function signedPct(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"")+n.toFixed(2)+"%"}
 function ratePct(v){return v==null?"-":Number(v).toFixed(2)+"%"}
-function indexValue(v){return v==null?"-":Number(v).toFixed(2)}
-function flowValue(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"") + "$" + n.toFixed(1) + "M"}
+function flowValue(v){if(v==null)return "-";const n=Number(v),sign=n>0?"+":"";return Math.abs(n)>=1000?sign+"$"+(n/1000).toFixed(2)+"B":sign+"$"+n.toFixed(1)+"M"}
 function pct(v,d=1){return v==null?"-":Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})+"%"}
 function multiple(v){return v==null?"-":Number(v/100).toLocaleString("en-US",{maximumFractionDigits:0,minimumFractionDigits:0})}
 function ratioValue(item,r,suffix=""){const key=item.candle||item.key,base=ratioBase[key],source=suffix?`${key}${suffix}`:key;return base&&r[source]!=null?r[source]/base*100:null}
 function plotValue(item,r){return item.scale==="ratio"?ratioValue(item,r):r[item.key]}
 function ohlcText(item,r){const key=item.candle;return `开 ${usd(r[`${key}Open`])} / 高 ${usd(r[`${key}High`])} / 低 ${usd(r[`${key}Low`])} / 收 ${usd(r[key])}`}
-function valueText(item,r){if(item.kind==="candle")return ohlcText(item,r);if(item.scale==="ratio"){const daily=item.key==="btc"?r.btcDaily:r.ethDaily;return r[item.key]==null?"-":usd(r[item.key])+"，"+signedPct(daily)}if(item.scale==="rate")return ratePct(r[item.key]);if(item.scale==="dxy")return indexValue(r[item.key]);if(item.scale==="etf")return flowValue(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
+function valueText(item,r){if(item.kind==="candle")return ohlcText(item,r);if(item.scale==="ratio"){const daily=item.key==="btc"?r.btcDaily:r.ethDaily;return r[item.key]==null?"-":usd(r[item.key])+"，"+signedPct(daily)}if(item.scale==="rate")return ratePct(r[item.key]);if(item.scale==="etf")return flowValue(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
 function extentValues(item,r){return item.kind==="candle"?["Open","High","Low",""].map(s=>ratioValue(item,r,s)):[plotValue(item,r)]}
 function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.flatMap(r=>extentValues(item,r)).filter(finite)});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
@@ -741,9 +716,8 @@ function xScale(t){return box.x0+(t-box.t0)/(box.t1-box.t0)*(box.x1-box.x0)}
 function yRatio(v){return box.y1-(Math.log(v)-box.ratioMin)/(box.ratioMax-box.ratioMin)*(box.y1-box.y0)}
 function ySupply(v){return box.y1-(v-box.supplyMin)/(box.supplyMax-box.supplyMin)*(box.y1-box.y0)}
 function yRate(v){return box.y1-(v-box.rateMin)/(box.rateMax-box.rateMin)*(box.y1-box.y0)}
-function yDxy(v){return box.y1-(v-box.dxyMin)/(box.dxyMax-box.dxyMin)*(box.y1-box.y0)}
 function yEtf(v){return box.y1-(v-box.etfMin)/(box.etfMax-box.etfMin)*(box.y1-box.y0)}
-function yFor(item,v){if(item.scale==="ratio")return yRatio(v);if(item.scale==="rate")return yRate(v);if(item.scale==="dxy")return yDxy(v);if(item.scale==="etf")return yEtf(v);return ySupply(v)}
+function yFor(item,v){if(item.scale==="ratio")return yRatio(v);if(item.scale==="rate")return yRate(v);if(item.scale==="etf")return yEtf(v);return ySupply(v)}
 function gridLine(y){ctx.strokeStyle=colors.grid;ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(box.x0,y);ctx.lineTo(box.x1,y);ctx.stroke()}
 function drawLegend(x,y,maxX){
   legendBoxes=[];
@@ -847,9 +821,8 @@ function draw(active,eventDate=null){
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample);
   const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable"]),sample);
   const [rateMin0,rateMax0]=extent(activeKeys("rate",["usRate","us2y"]),sample),ratePad=Math.max((rateMax0-rateMin0)*.18,.15);
-  const [dxyMin0,dxyMax0]=extent(activeKeys("dxy",["dxy"]),sample),dxyPad=Math.max((dxyMax0-dxyMin0)*.18,1);
   const [etfMin0,etfMax0]=extent(activeKeys("etf",["btcEtfFlow"]),sample),etfPad=Math.max((etfMax0-etfMin0)*.18,100);
-  box={x0,x1,y0,y1,t0,t1,ratioMin:Math.log(Math.max(ratioMin0*.75,.01)),ratioMax:Math.log(ratioMax0*1.18),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1),rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad,dxyMin:dxyMin0-dxyPad,dxyMax:dxyMax0+dxyPad,etfMin:etfMin0-etfPad,etfMax:etfMax0+etfPad};
+  box={x0,x1,y0,y1,t0,t1,ratioMin:Math.log(Math.max(ratioMin0*.75,.01)),ratioMax:Math.log(ratioMax0*1.18),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1),rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad,etfMin:etfMin0-etfPad,etfMax:etfMax0+etfPad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   ctx.fillStyle=colors.text;ctx.font="700 21px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText("USDT发行量 与 BTC/ETH",w/2,titleY);
   drawLegend(x0,legendY,x1);drawPeriodTabs(x1-154,titleY-15);
