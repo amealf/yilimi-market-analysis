@@ -164,7 +164,7 @@ def to_timestamp(day: date) -> int:
     return int(datetime(day.year, day.month, day.day, tzinfo=timezone.utc).timestamp())
 
 
-def fetch_price(symbol: str, column: str, start: date, end: date) -> pd.Series:
+def fetch_price(symbol: str, column: str, start: date, end: date) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     to_ts = to_timestamp(end)
     start_ts = to_timestamp(start)
@@ -175,7 +175,11 @@ def fetch_price(symbol: str, column: str, start: date, end: date) -> pd.Series:
         data = payload.get("Data", {}).get("Data", []) if isinstance(payload, dict) else []
         if not data:
             break
-        valid_data = [item for item in data if isinstance(item, dict) and "time" in item and "close" in item]
+        valid_data = [
+            item
+            for item in data
+            if isinstance(item, dict) and all(key in item for key in ["time", "open", "high", "low", "close"])
+        ]
         if not valid_data:
             raise RuntimeError(f"{symbol} price payload has unexpected shape")
         rows.extend(valid_data)
@@ -190,10 +194,16 @@ def fetch_price(symbol: str, column: str, start: date, end: date) -> pd.Series:
 
     frame = pd.DataFrame(rows)
     frame["date"] = pd.to_datetime(frame["time"], unit="s", utc=True).dt.tz_localize(None).dt.normalize()
-    frame[column] = pd.to_numeric(frame["close"], errors="coerce")
-    frame = frame[frame[column] > 0]
-    frame = frame.loc[(frame["date"] >= pd.Timestamp(start)) & (frame["date"] <= pd.Timestamp(end)), ["date", column]]
-    return frame.drop_duplicates("date").sort_values("date").set_index("date")[column]
+    rename_map = {"open": f"{column}_open", "high": f"{column}_high", "low": f"{column}_low", "close": column}
+    for source, target in rename_map.items():
+        frame[target] = pd.to_numeric(frame[source], errors="coerce")
+    output_columns = list(rename_map.values())
+    frame = frame.loc[frame[output_columns].gt(0).all(axis=1)]
+    frame = frame.loc[
+        (frame["date"] >= pd.Timestamp(start)) & (frame["date"] <= pd.Timestamp(end)),
+        ["date", *output_columns],
+    ]
+    return frame.drop_duplicates("date").sort_values("date").set_index("date")
 
 
 def fetch_stablecoin_supply(stablecoin_id: int, column: str, start: date, end: date) -> pd.Series:
@@ -279,6 +289,18 @@ def normalize_optional_macro_columns(data: pd.DataFrame) -> None:
         data[column] = pd.to_numeric(data[column], errors="coerce").ffill()
 
 
+def normalize_price_ohlc_columns(data: pd.DataFrame) -> None:
+    for symbol in ["BTC", "ETH"]:
+        if symbol not in data.columns:
+            continue
+        close = pd.to_numeric(data[symbol], errors="coerce")
+        for suffix in ["open", "high", "low"]:
+            column = f"{symbol}_{suffix}"
+            if column not in data.columns:
+                data[column] = close
+            data[column] = pd.to_numeric(data[column], errors="coerce").ffill()
+
+
 def fetch_optional_macro_series() -> dict[str, pd.Series | None]:
     series: dict[str, pd.Series | None] = {"us_2y": None, "dxy": None}
     try:
@@ -342,6 +364,7 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
                 cached["stable_b"] = cached[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
             cached = attach_us_rate(cached)
             normalize_optional_macro_columns(cached)
+            normalize_price_ohlc_columns(cached)
             add_usdt_indicators(cached)
             return cached
         raise
@@ -357,6 +380,7 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
     normalize_optional_macro_columns(data)
     for column in ["BTC", "ETH", "USDT", "USDC"]:
         data[column] = data[column].ffill()
+    normalize_price_ohlc_columns(data)
 
     data["usdt_b"] = data["USDT"] / 1e9
     data["usdc_b"] = data["USDC"] / 1e9
@@ -510,6 +534,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     meta = chart_meta(data)
     generated_at = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
     data = data.copy()
+    normalize_price_ohlc_columns(data)
     data["btc_daily_pct"] = data["BTC"].pct_change() * 100
     data["eth_daily_pct"] = data["ETH"].pct_change() * 100
     display_data = data.loc[data["date"] >= DISPLAY_START]
@@ -519,7 +544,13 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
             {
                 "date": row.date.strftime("%Y-%m-%d"),
                 "btc": series_value(row.BTC, 2),
+                "btcOpen": series_value(row.BTC_open, 2),
+                "btcHigh": series_value(row.BTC_high, 2),
+                "btcLow": series_value(row.BTC_low, 2),
                 "eth": series_value(row.ETH, 2),
+                "ethOpen": series_value(row.ETH_open, 2),
+                "ethHigh": series_value(row.ETH_high, 2),
+                "ethLow": series_value(row.ETH_low, 2),
                 "btcDaily": series_value(row.btc_daily_pct, 2),
                 "ethDaily": series_value(row.eth_daily_pct, 2),
                 "usdt": series_value(row.usdt_b, 4),
@@ -573,10 +604,12 @@ const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",usRate:"rgba(148,103,189,.70)",us2y:"rgba(91,155,213,.70)",dxy:"rgba(192,80,77,.70)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",candle:"rgba(17,24,39,.50)",candleSoft:"rgba(17,24,39,.28)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",usRate:"rgba(148,103,189,.70)",us2y:"rgba(248,113,113,.72)",dxy:"rgba(192,80,77,.70)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const series=[
   {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15},
   {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05},
+  {key:"btcCandle",label:"BTC K线",color:colors.candle,scale:"ratio",kind:"candle",candle:"btc"},
+  {key:"ethCandle",label:"ETH K线",color:colors.candleSoft,scale:"ratio",kind:"candle",candle:"eth"},
   {key:"usdt",label:"USDT发行量",color:colors.usdt,scale:"supply",width:1.15},
   {key:"usdc",label:"USDC发行量",color:colors.usdc,scale:"supply",width:1.15},
   {key:"stable",label:"USDT+USDC",color:colors.stable,scale:"supply",width:1.1},
@@ -584,19 +617,33 @@ const series=[
   {key:"us2y",label:"美国2Y利率",color:colors.us2y,scale:"rate",width:.95},
   {key:"dxy",label:"美元指数",color:colors.dxy,scale:"dxy",width:.95}
 ];
-const periodNames={day:"日",week:"周",month:"月"};
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="day",hoverPeriod=null,hidden={usdt:true,usdc:true,usRate:true,us2y:true,dxy:true};
+const periodNames={day:"日",week:"周",month:"月",quarter:"季"};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],period="day",hoverPeriod=null,hidden={btcCandle:true,ethCandle:true,usdt:true,usdc:true,usRate:true,us2y:true,dxy:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
+function finite(v){return v!=null&&Number.isFinite(v)}
 function dayLabel(date){return `${date}（${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`}
-function periodTitle(r){return period==="day"?dayLabel(r.date):`${r.date}（${periodNames[period]}）`}
+function periodTitle(r){return period==="day"?dayLabel(r.date):period==="quarter"?`${quarterKey(r.t)}（季）`:`${r.date}（${periodNames[period]}）`}
 function weekKey(t){const d=new Date(t),day=d.getUTCDay(),diff=(day+6)%7,s=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-diff));return s.toISOString().slice(0,10)}
 function monthKey(t){const d=new Date(t);return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`}
+function quarterKey(t){const d=new Date(t);return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth()/3)+1}`}
+function groupOhlc(group,last,key){
+  const openKey=`${key}Open`,highKey=`${key}High`,lowKey=`${key}Low`;
+  const openRow=group.find(r=>finite(r[openKey]));
+  const highs=group.map(r=>r[highKey]).filter(finite),lows=group.map(r=>r[lowKey]).filter(finite);
+  last[openKey]=openRow?openRow[openKey]:last[key];
+  last[highKey]=highs.length?Math.max(...highs):last[key];
+  last[lowKey]=lows.length?Math.min(...lows):last[key];
+}
 function groupedRows(mode){
   if(mode==="day")return rawRows.map(cloneRow);
-  const map=new Map(),keyFn=mode==="week"?weekKey:monthKey;
-  rawRows.forEach(r=>map.set(keyFn(r.t),cloneRow(r)));
-  return Array.from(map.values()).sort((a,b)=>a.t-b.t).map((r,i,a)=>({...r,btcDaily:i&&a[i-1].btc&&r.btc!=null?(r.btc/a[i-1].btc-1)*100:null,ethDaily:i&&a[i-1].eth&&r.eth!=null?(r.eth/a[i-1].eth-1)*100:null}));
+  const groups=new Map(),keyFn=mode==="week"?weekKey:mode==="month"?monthKey:quarterKey;
+  rawRows.forEach(r=>{const key=keyFn(r.t);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r)});
+  return Array.from(groups.values()).map(group=>{
+    const last=cloneRow(group[group.length-1]);
+    groupOhlc(group,last,"btc");groupOhlc(group,last,"eth");
+    return last;
+  }).sort((a,b)=>a.t-b.t).map((r,i,a)=>({...r,btcDaily:i&&a[i-1].btc&&r.btc!=null?(r.btc/a[i-1].btc-1)*100:null,ethDaily:i&&a[i-1].eth&&r.eth!=null?(r.eth/a[i-1].eth-1)*100:null}));
 }
 let rows=groupedRows(period),ratioBase={},rowsPeriod=null,hoverKey="",pendingPoint=null,hoverFrame=false;
 function refreshRows(){if(rowsPeriod===period)return;rows=groupedRows(period);ratioBase={btc:rows.find(r=>r.btc!=null)?.btc,eth:rows.find(r=>r.eth!=null)?.eth};rowsPeriod=period}
@@ -609,10 +656,12 @@ function ratePct(v){return v==null?"-":Number(v).toFixed(2)+"%"}
 function indexValue(v){return v==null?"-":Number(v).toFixed(2)}
 function pct(v,d=1){return v==null?"-":Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})+"%"}
 function multiple(v){return v==null?"-":Number(v/100).toLocaleString("en-US",{maximumFractionDigits:0,minimumFractionDigits:0})}
-function ratioValue(item,r){const base=ratioBase[item.key];return base&&r[item.key]!=null?r[item.key]/base*100:null}
+function ratioValue(item,r,suffix=""){const key=item.candle||item.key,base=ratioBase[key],source=suffix?`${key}${suffix}`:key;return base&&r[source]!=null?r[source]/base*100:null}
 function plotValue(item,r){return item.scale==="ratio"?ratioValue(item,r):r[item.key]}
-function valueText(item,r){if(item.scale==="ratio"){const daily=item.key==="btc"?r.btcDaily:r.ethDaily;return r[item.key]==null?"-":usd(r[item.key])+"，"+signedPct(daily)}if(item.scale==="rate")return ratePct(r[item.key]);if(item.scale==="dxy")return indexValue(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
-function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.map(r=>plotValue(item,r)).filter(v=>v!=null&&Number.isFinite(v))});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
+function ohlcText(item,r){const key=item.candle;return `开 ${usd(r[`${key}Open`])} / 高 ${usd(r[`${key}High`])} / 低 ${usd(r[`${key}Low`])} / 收 ${usd(r[key])}`}
+function valueText(item,r){if(item.kind==="candle")return ohlcText(item,r);if(item.scale==="ratio"){const daily=item.key==="btc"?r.btcDaily:r.ethDaily;return r[item.key]==null?"-":usd(r[item.key])+"，"+signedPct(daily)}if(item.scale==="rate")return ratePct(r[item.key]);if(item.scale==="dxy")return indexValue(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
+function extentValues(item,r){return item.kind==="candle"?["Open","High","Low",""].map(s=>ratioValue(item,r,s)):[plotValue(item,r)]}
+function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.flatMap(r=>extentValues(item,r)).filter(finite)});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
 function currentRange(){return zoom||[rows[0].t,displayEnd()]}
 function visibleRows(){const [t0,t1]=currentRange();const sample=rows.filter(r=>r.t>=t0&&r.t<=t1);return sample.length?sample:rows}
@@ -635,9 +684,15 @@ function drawLegend(x,y,maxX){
     ctx.globalAlpha=off?.28:1;
     ctx.strokeStyle=off?"rgba(82,96,113,.45)":item.color;
     ctx.fillStyle=off?"rgba(82,96,113,.58)":colors.text;
-    ctx.lineWidth=item.scale==="dev"?1.8:2;
-    ctx.setLineDash(item.dash||[]);
-    ctx.beginPath();ctx.moveTo(cur,rowY);ctx.lineTo(cur+28,rowY);ctx.stroke();ctx.setLineDash([]);
+    ctx.lineWidth=item.kind==="candle"?1:2;
+    if(item.kind==="candle"){
+      ctx.beginPath();ctx.moveTo(cur+14,rowY-8);ctx.lineTo(cur+14,rowY+8);ctx.stroke();
+      ctx.fillStyle="rgba(255,255,255,.72)";ctx.fillRect(cur+9,rowY-5,10,10);ctx.strokeRect(cur+9,rowY-5,10,10);
+      ctx.fillStyle=off?"rgba(82,96,113,.58)":colors.text;
+    }else{
+      ctx.setLineDash(item.dash||[]);
+      ctx.beginPath();ctx.moveTo(cur,rowY);ctx.lineTo(cur+28,rowY);ctx.stroke();ctx.setLineDash([]);
+    }
     ctx.textAlign="left";ctx.fillText(item.label,cur+36,rowY+4);
     ctx.globalAlpha=1;
     cur+=total;
@@ -645,7 +700,7 @@ function drawLegend(x,y,maxX){
 }
 function drawPeriodTabs(x,y){
   periodBoxes=[];
-  const labels=[["day","日"],["week","周"],["month","月"]];
+  const labels=[["day","日"],["week","周"],["month","月"],["quarter","季"]];
   ctx.font="12px Microsoft YaHei,Arial";
   labels.forEach(([key,label],i)=>{
     const w=34,h=20,left=x+i*(w+6),active=period===key,hovered=hoverPeriod===key;
@@ -663,8 +718,22 @@ function drawAxes(){
   [10,100,1000,10000,100000].forEach(v=>{if(Math.log(v)<box.ratioMin||Math.log(v)>box.ratioMax)return;const y=yRatio(v);ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(multiple(v),box.x0-9,y+4)});
   [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
 }
+function drawCandles(item){
+  const count=Math.max(visibleRows().length,1),bodyW=Math.max(2,Math.min(period==="quarter"?18:period==="month"?14:period==="week"?10:7,(box.x1-box.x0)/count*.58));
+  rows.forEach(r=>{
+    const o=ratioValue(item,r,"Open"),h=ratioValue(item,r,"High"),l=ratioValue(item,r,"Low"),c=ratioValue(item,r);
+    if([o,h,l,c].some(v=>!finite(v)))return;
+    const x=xScale(r.t);
+    if(x<box.x0-bodyW||x>box.x1+bodyW)return;
+    const yO=yRatio(o),yH=yRatio(h),yL=yRatio(l),yC=yRatio(c),top=Math.min(yO,yC),bodyH=Math.max(1,Math.abs(yC-yO));
+    ctx.strokeStyle=c>=o?colors.candleSoft:colors.candle;ctx.fillStyle="rgba(255,255,255,.74)";ctx.lineWidth=.75;
+    ctx.beginPath();ctx.moveTo(x,yH);ctx.lineTo(x,yL);ctx.stroke();
+    ctx.fillRect(x-bodyW/2,top,bodyW,bodyH);ctx.strokeRect(x-bodyW/2,top,bodyW,bodyH);
+  });
+}
 function drawPath(item){
   if(hidden[item.key])return;
+  if(item.kind==="candle"){drawCandles(item);return}
   ctx.beginPath();
   let open=false;
   rows.forEach(r=>{
@@ -709,9 +778,9 @@ function draw(active,eventDate=null){
   box={x0,x1,y0,y1,t0,t1,ratioMin:Math.log(Math.max(ratioMin0*.75,.01)),ratioMax:Math.log(ratioMax0*1.18),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1),rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad,dxyMin:dxyMin0-dxyPad,dxyMax:dxyMax0+dxyPad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   ctx.fillStyle=colors.text;ctx.font="700 21px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText("USDT发行量 与 BTC/ETH",w/2,titleY);
-  drawLegend(x0,legendY,x1);drawPeriodTabs(x1-112,titleY-15);
-  const startDate=new Date(box.t0),endDate=new Date(box.t1),cursor=new Date(Date.UTC(startDate.getUTCFullYear(),startDate.getUTCMonth(),1)),endMonth=new Date(Date.UTC(endDate.getUTCFullYear(),endDate.getUTCMonth(),1));
-  for(;cursor<=endMonth;cursor.setUTCMonth(cursor.getUTCMonth()+1)){const x=xScale(cursor.getTime());if(x<x0||x>x1)continue;ctx.setLineDash([3,6]);ctx.strokeStyle="rgba(148,163,184,.20)";ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);if(cursor.getUTCMonth()===0){ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(cursor.getUTCFullYear(),x,y1+(isEmbed?23:28))}}
+  drawLegend(x0,legendY,x1);drawPeriodTabs(x1-154,titleY-15);
+  const startYear=new Date(box.t0).getUTCFullYear(),endYear=new Date(box.t1).getUTCFullYear();
+  for(let year=startYear;year<=endYear;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
   if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：北京时间 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
