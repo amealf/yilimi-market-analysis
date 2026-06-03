@@ -689,7 +689,7 @@ function multiple(v){return v==null?"-":Number(v/100).toLocaleString("en-US",{ma
 function ratioValue(item,r,suffix=""){const key=item.candle||item.key,base=ratioBase[key],source=suffix?`${key}${suffix}`:key;return base&&r[source]!=null?r[source]/base*100:null}
 function plotValue(item,r){const v=item.scale==="ratio"?ratioValue(item,r):r[item.key];return v!=null&&item.valueDivisor?v/item.valueDivisor:v}
 function ohlcText(item,r){const key=item.candle;return `开 ${usd(r[`${key}Open`])} / 高 ${usd(r[`${key}High`])} / 低 ${usd(r[`${key}Low`])} / 收 ${usd(r[key])}`}
-function valueText(item,r){if(item.scale==="ratio"){const daily=item.key==="btc"?r.btcDaily:r.ethDaily;if(r[item.key]==null)return "-";return priceMode==="candle"?`${ohlcText({candle:item.key},r)}，${signedPct(daily)}`:usd(r[item.key])+"，"+signedPct(daily)}if(item.key==="btcEtfFlow")return flowValue(r[item.key]);if(item.scale==="rate")return ratePct(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
+function valueText(item,r){if(item.scale==="ratio"){const daily=item.key==="btc"?r.btcDaily:r.ethDaily;if(r[item.key]==null)return "-";return priceMode==="candle"?`${ohlcText({candle:item.key},r)}（${signedPct(daily)}）`:usd(r[item.key])+"（"+signedPct(daily)+"）"}if(item.key==="btcEtfFlow")return flowValue(r[item.key]);if(item.scale==="rate")return ratePct(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
 function extentValues(item,r){return item.scale==="ratio"&&priceMode==="candle"?["Open","High","Low",""].map(s=>ratioValue(item,r,s)):[plotValue(item,r)]}
 function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.flatMap(r=>extentValues(item,r)).filter(finite)});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
@@ -837,7 +837,7 @@ function draw(active,eventDate=null){
   drawLegend(x0,legendY,compactHeader?x1:modeX-8);drawModeTabs(modeX,controlY);drawPeriodTabs(periodX,controlY);
   const startYear=new Date(box.t0).getUTCFullYear(),endYear=new Date(box.t1).getUTCFullYear();
   for(let year=startYear;year<=endYear;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
-  if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：北京时间 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
+  if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：UTC+8 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);if(priceMode==="candle"){drawCandles("btc");drawCandles("eth")}ctx.restore();
