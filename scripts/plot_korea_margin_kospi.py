@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -414,7 +415,7 @@ def chart_meta(data: pd.DataFrame) -> dict:
             float(latest_foreign["foreign_net_buy_cumulative_trillion_krw"]), 6
         ),
         "latestDataDate": str(latest_data_date),
-        "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M (UTC)"),
+        "updatedAt": datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d %H:%M (ET)"),
         "oldPeakDate": str(old_peak["date"]),
         "oldPeak": round(float(old_peak["credit_financing_trillion_krw"]), 6),
         "oldPeakKospi": nearest_value(old_peak["date"], "kospi_close", 2),
