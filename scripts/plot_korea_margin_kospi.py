@@ -19,6 +19,7 @@ import pandas as pd
 START_DATE = "2014-01-01"
 KOFIA_DATA = "https://freesis.kofia.or.kr/meta/getMetaDataList.do"
 NAVER_INVESTOR_TREND = "https://finance.naver.com/sise/investorDealTrendDay.naver"
+NAVER_INDEX_DAY = "https://finance.naver.com/sise/sise_index_day.naver"
 YAHOO_CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart"
 KOSPI_YAHOO_SYMBOL = "^KS11"
 USDKRW_YAHOO_SYMBOL = "KRW=X"
@@ -55,6 +56,13 @@ def parse_number(value: str) -> int | None:
     if not value or value == "-":
         return None
     return int(value)
+
+
+def parse_float(value: str) -> float | None:
+    value = value.replace(",", "").replace("+", "").strip()
+    if not value or value == "-":
+        return None
+    return float(value)
 
 
 def clean_cell(value: str) -> str:
@@ -268,8 +276,59 @@ def fetch_yahoo_close(symbol: str, column: str, label: str) -> pd.DataFrame:
     return pd.DataFrame(records).drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
 
 
+def parse_naver_kospi_rows(content: str) -> list[dict]:
+    rows = []
+    for row_html in re.findall(r"<tr[^>]*>(.*?)</tr>", content, flags=re.S):
+        cells = [clean_cell(cell) for cell in re.findall(r"<td[^>]*>(.*?)</td>", row_html, flags=re.S)]
+        if len(cells) < 2 or not re.fullmatch(r"\d{4}\.\d{2}\.\d{2}", cells[0]):
+            continue
+        row_date = datetime.strptime(cells[0], "%Y.%m.%d").date()
+        close = parse_float(cells[1])
+        if close is None:
+            continue
+        rows.append({"date": row_date, "kospi_close": close})
+    return rows
+
+
+def fetch_naver_kospi_page(page: int) -> list[dict]:
+    params = urlencode({"code": "KOSPI", "page": page})
+    req = Request(
+        f"{NAVER_INDEX_DAY}?{params}",
+        headers={
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Referer": "https://finance.naver.com/sise/sise_index.naver?code=KOSPI",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+        },
+    )
+    return parse_naver_kospi_rows(fetch_text(req, "euc-kr"))
+
+
+def fetch_naver_kospi_recent(page_count: int = 8) -> pd.DataFrame:
+    rows: list[dict] = []
+    for page in range(1, page_count + 1):
+        rows.extend(fetch_naver_kospi_page(page))
+    if not rows:
+        raise RuntimeError("Naver Finance KOSPI 接口没有返回数据")
+    return pd.DataFrame(rows).drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
+
+
 def fetch_kospi() -> pd.DataFrame:
-    return fetch_yahoo_close(KOSPI_YAHOO_SYMBOL, "kospi_close", "KOSPI")
+    yahoo = fetch_yahoo_close(KOSPI_YAHOO_SYMBOL, "kospi_close", "KOSPI")
+    try:
+        naver = fetch_naver_kospi_recent()
+    except Exception:
+        return yahoo
+    return (
+        pd.concat([naver, yahoo], ignore_index=True)
+        .drop_duplicates(subset=["date"], keep="first")
+        .sort_values("date")
+        .reset_index(drop=True)
+    )
+
 
 
 def fetch_usdkrw() -> pd.DataFrame:
@@ -335,7 +394,7 @@ def chart_meta(data: pd.DataFrame) -> dict:
         latest_optional = data.dropna(subset=[column])
         if not latest_optional.empty:
             latest_dates.append(latest_optional.iloc[-1]["date"])
-    updated_at = max(latest_dates)
+    latest_data_date = max(latest_dates)
 
     def nearest_value(date_value: date, column: str, digits: int) -> float | None:
         values = data[(data["date"] <= date_value) & data[column].notna()]
@@ -354,7 +413,8 @@ def chart_meta(data: pd.DataFrame) -> dict:
         "latestForeignCumulative": round(
             float(latest_foreign["foreign_net_buy_cumulative_trillion_krw"]), 6
         ),
-        "updatedAt": str(updated_at),
+        "latestDataDate": str(latest_data_date),
+        "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M (UTC)"),
         "oldPeakDate": str(old_peak["date"]),
         "oldPeak": round(float(old_peak["credit_financing_trillion_krw"]), 6),
         "oldPeakKospi": nearest_value(old_peak["date"], "kospi_close", 2),
