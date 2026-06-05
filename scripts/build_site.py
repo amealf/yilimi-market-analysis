@@ -397,7 +397,7 @@ def category_card(category: dict, charts: list[dict], prefix: str = "") -> str:
 
 def category_footer(category_id: str, now: str) -> str:
     sources = CATEGORY_SOURCES.get(category_id, DATA_SOURCES)
-    return f"<footer>刷新时间：北京时间 {now}　数据来源：{html.escape(sources)}。</footer>"
+    return f"<footer>刷新时间：UTC+8 {now}　数据来源：{html.escape(sources)}。</footer>"
 
 
 def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:

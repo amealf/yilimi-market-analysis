@@ -457,7 +457,7 @@ function draw(active,eventDate=null){
   legendBoxes=[];drawStartTabs(Math.max(x0,x1-184),tabY);
   drawWeekends();
   drawDateTicks();
-  if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：北京时间 ${P.generatedAt}　数据来源：${P.dataSources}　事件颜色：绿色表示好消息，红色表示坏消息，颜色越深表示强度越高`,x0,h-Math.max(8,outer*.35))}
+  if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：UTC+8 ${P.generatedAt}　数据来源：${P.dataSources}　事件颜色：绿色表示好消息，红色表示坏消息，颜色越深表示强度越高`,x0,h-Math.max(8,outer*.35))}
   drawAxes();
   ctx.strokeStyle=colors.frame;ctx.lineWidth=1;ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();drawCandles();ctx.restore();

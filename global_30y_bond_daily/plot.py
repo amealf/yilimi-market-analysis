@@ -241,7 +241,7 @@ def add_footer_note(fig: go.Figure, markets: list[dict]) -> None:
         y=-0.145,
         xref="paper",
         yref="paper",
-        text=f"刷新时间：北京时间 {updated}　数据来源：{html.escape(CHART_DATA_SOURCES)}",
+        text=f"刷新时间：UTC+8 {updated}　数据来源：{html.escape(CHART_DATA_SOURCES)}",
         showarrow=False,
         xanchor="left",
         yanchor="top",

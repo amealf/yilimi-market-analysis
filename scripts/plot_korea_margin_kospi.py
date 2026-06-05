@@ -415,7 +415,7 @@ def chart_meta(data: pd.DataFrame) -> dict:
             float(latest_foreign["foreign_net_buy_cumulative_trillion_krw"]), 6
         ),
         "latestDataDate": str(latest_data_date),
-        "updatedAt": datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d %H:%M (ET)"),
+        "updatedAt": datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M (UTC+8)"),
         "oldPeakDate": str(old_peak["date"]),
         "oldPeak": round(float(old_peak["credit_financing_trillion_krw"]), 6),
         "oldPeakKospi": nearest_value(old_peak["date"], "kospi_close", 2),
