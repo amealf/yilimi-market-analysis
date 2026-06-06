@@ -697,15 +697,15 @@ def render_data_explanation_html(markdown_text: str) -> str:
   <style>
     body{{margin:0;background:#eef3f7;color:#17202a;font-family:"Microsoft YaHei",Arial,sans-serif;line-height:1.7}}
     main{{max-width:860px;margin:0 auto;padding:34px 18px 48px}}
-    article{{background:#fff;border:1px solid #d7e0e8;border-radius:8px;padding:24px 28px;box-shadow:0 12px 30px rgba(15,23,42,.07)}}
-    h1{{margin:0 0 16px;font-size:24px;line-height:1.3}}
-    h2{{margin:22px 0 8px;font-size:17px;line-height:1.4}}
-    h3{{margin:20px 0 8px;font-size:15px;line-height:1.4}}
-    p{{margin:0 0 12px;color:#344054;font-size:14px}}
+    article{{background:#fff;border:1px solid #d7e0e8;border-radius:8px;padding:28px 32px;box-shadow:0 12px 30px rgba(15,23,42,.07)}}
+    h1{{margin:0 0 20px;font-size:30px;line-height:1.28;text-align:center}}
+    h2{{margin:26px 0 10px;font-size:21px;line-height:1.38}}
+    h3{{margin:22px 0 8px;font-size:19px;line-height:1.38}}
+    p{{margin:0 0 15px;color:#344054;font-size:18px}}
     code{{padding:2px 5px;border-radius:4px;background:#f1f5f9;color:#0f172a;font-family:Consolas,monospace;font-size:.92em}}
     a{{color:#2563eb;text-decoration:underline;text-underline-offset:2px}}
-    .back{{display:inline-flex;margin-bottom:12px;color:#2563eb;font-size:13px}}
-    @media (max-width:640px){{main{{padding:18px 10px 32px}}article{{padding:18px 16px}}h1{{font-size:22px}}h2{{font-size:16px}}p{{font-size:13px}}}}
+    .back{{display:inline-flex;margin-bottom:14px;color:#2563eb;font-size:16px}}
+    @media (max-width:640px){{main{{padding:18px 10px 32px}}article{{padding:20px 18px}}h1{{font-size:28px}}h2{{font-size:20px}}p{{font-size:16px}}}}
   </style>
 </head>
 <body>
@@ -753,7 +753,13 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
                 "ethHigh": series_value(row.ETH_high, 2),
                 "ethLow": series_value(row.ETH_low, 2),
                 "sol": series_value(row.SOL, 2),
+                "solOpen": series_value(row.SOL_open, 2),
+                "solHigh": series_value(row.SOL_high, 2),
+                "solLow": series_value(row.SOL_low, 2),
                 "bnb": series_value(row.BNB, 2),
+                "bnbOpen": series_value(row.BNB_open, 2),
+                "bnbHigh": series_value(row.BNB_high, 2),
+                "bnbLow": series_value(row.BNB_low, 2),
                 "btcEthRatio": series_value(row.btc_eth_ratio, 4),
                 "btcDaily": series_value(row.btc_daily_pct, 2),
                 "ethDaily": series_value(row.eth_daily_pct, 2),
@@ -812,14 +818,14 @@ const tip=document.getElementById("tip");
 const footerNote=document.getElementById("footerNote");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleBtcLine:"rgba(31,119,180,.82)",candleBtcDown:"rgba(31,119,180,.40)",candleEthLine:"rgba(165,165,165,.72)",candleEthDown:"rgba(165,165,165,.36)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us2y:"rgba(248,113,113,.82)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleDownAlpha:.42,usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us2y:"rgba(248,113,113,.82)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 if(footerNote)footerNote.innerHTML=`<span>刷新时间：UTC+8 ${P.generatedAt}</span><span>数据来源：${P.dataSources}</span><a href="usdt-speed-indicator-data-explained.html" target="_blank" rel="noopener">数据解释</a>`;
 const series=[
   {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15,kind:"candle"},
   {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05,kind:"candle"},
-  {key:"sol",label:"SOL",color:colors.sol,scale:"ratio",width:1.0,dash:[4,3]},
-  {key:"bnb",label:"BNB",color:colors.bnb,scale:"ratio",width:1.0,dash:[7,4]},
-  {key:"btcEthRatio",label:"BTC/ETH比值",color:colors.btcEthRatio,scale:"ratio",width:1.0,dash:[2,3],format:"number"},
+  {key:"sol",label:"SOL",color:colors.sol,scale:"ratio",width:1.05,kind:"candle"},
+  {key:"bnb",label:"BNB",color:colors.bnb,scale:"ratio",width:1.05,kind:"candle"},
+  {key:"btcEthRatio",label:"BTC/ETH比值",color:colors.btcEthRatio,scale:"ratio",width:1.05,format:"number"},
   {key:"usdt",label:"USDT发行量",color:colors.usdt,scale:"supply",width:1.15},
   {key:"usdc",label:"USDC发行量",color:colors.usdc,scale:"supply",width:1.15},
   {key:"stable",label:"USDT+USDC",color:colors.stable,scale:"supply",width:1.1},
@@ -852,7 +858,7 @@ function groupedRows(mode){
   rawRows.forEach(r=>{const key=keyFn(r.t);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r)});
   return addPeriodChanges(Array.from(groups.values()).map(group=>{
     const last=cloneRow(group[group.length-1]);
-    groupOhlc(group,last,"btc");groupOhlc(group,last,"eth");
+    ["btc","eth","sol","bnb"].forEach(key=>groupOhlc(group,last,key));
     return last;
   }).sort((a,b)=>a.t-b.t));
 }
@@ -975,8 +981,9 @@ function drawAxes(){
 }
 function drawCandles(key){
   if(hidden[key])return;
+  const seriesItem=series.find(item=>item.key===key);
   const item={key,candle:key},count=Math.max(visibleRows().length,1),bodyW=Math.max(.8,Math.min(period==="quarter"?16:period==="month"?12:period==="week"?8:5,(box.x1-box.x0)/count*.48));
-  const candleLine=key==="btc"?colors.candleBtcLine:colors.candleEthLine,candleDown=key==="btc"?colors.candleBtcDown:colors.candleEthDown;
+  const candleLine=seriesItem?.color||colors.btc,candleDown=candleLine.replace(/rgba?\\(([^)]+)\\)/,(_,value)=>`rgba(${value.split(",").slice(0,3).join(",")},${colors.candleDownAlpha})`);
   rows.forEach(r=>{
     const o=ratioValue(item,r,"Open"),h=ratioValue(item,r,"High"),l=ratioValue(item,r,"Low"),c=ratioValue(item,r);
     if([o,h,l,c].some(v=>!finite(v)))return;
@@ -1042,7 +1049,7 @@ function draw(active,eventDate=null){
   for(let year=startYear;year<=endYear;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
-  ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);if(priceMode==="candle"){drawCandles("btc");drawCandles("eth")}ctx.restore();
+  ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);if(priceMode==="candle"){["btc","eth","sol","bnb"].forEach(drawCandles)}ctx.restore();
   drawEvents(eventDate);
   ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("价格与BTC/ETH比值（起点=0%）",0,0);ctx.restore();
   ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText("USDT / USDC / ETF累计净流入（$B）",0,0);ctx.restore();
