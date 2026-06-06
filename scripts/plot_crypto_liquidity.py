@@ -136,48 +136,145 @@ MARKET_EVENTS = [
     },
 ]
 
-DATA_EXPLANATION_MD = """# USDT发行量 与 BTC/ETH 数据解释
+EVENT_TRANSLATIONS_EN = {
+    "2020-03-15": {
+        "labelEn": "COVID / Fed QE",
+        "typeEn": "Dollar liquidity expansion",
+        "timezoneEn": "UTC-4 (US Eastern daylight time)",
+        "descriptionEn": "Global deleveraging hit risk assets on March 12. On March 15, the Fed cut rates to 0-0.25% and restarted Treasury and MBS purchases.",
+    },
+    "2021-09-24": {
+        "labelEn": "China ban",
+        "typeEn": "Regulatory shock",
+        "timezoneEn": "UTC+8 (China standard time)",
+        "descriptionEn": "Chinese regulators tightened restrictions on crypto trading and mining, and barred offshore exchanges from serving mainland investors.",
+    },
+    "2021-11-03": {
+        "labelEn": "Fed taper",
+        "typeEn": "Liquidity turn",
+        "timezoneEn": "UTC-4 (US Eastern daylight time)",
+        "descriptionEn": "The Fed announced slower asset purchases, moving COVID-era liquidity expansion toward tapering.",
+    },
+    "2022-03-16": {
+        "labelEn": "Fed hiking cycle",
+        "typeEn": "Dollar tightening",
+        "timezoneEn": "UTC-4 (US Eastern daylight time)",
+        "descriptionEn": "The Fed raised the target range to 0.25%-0.50%, starting the rate-hiking cycle and signaling balance-sheet runoff.",
+    },
+    "2022-05-11": {
+        "labelEn": "UST depeg",
+        "typeEn": "Stablecoin credit shock",
+        "timezoneEn": "UTC+0 (crypto market daily candle)",
+        "descriptionEn": "TerraUSD broke its dollar peg and hit the broader crypto market, marking a major stablecoin confidence shock.",
+    },
+    "2022-06-01": {
+        "labelEn": "QT starts",
+        "typeEn": "Dollar tightening",
+        "timezoneEn": "UTC-4 (US Eastern daylight time)",
+        "descriptionEn": "Fed balance-sheet runoff started, raising dollar-liquidity pressure through Treasury and MBS rolloff caps.",
+    },
+    "2023-03-12": {
+        "labelEn": "SVB / USDC",
+        "typeEn": "Stablecoin share shift",
+        "timezoneEn": "UTC-5/UTC-4 (US Eastern time)",
+        "descriptionEn": "After SVB entered receivership, Circle disclosed $3.3B of USDC reserves at SVB. USDC redemptions and depeg pressure drove demand toward USDT.",
+    },
+    "2024-01-10": {
+        "labelEn": "BTC ETF approval",
+        "typeEn": "Regulation / institutional adoption",
+        "timezoneEn": "UTC-5 (US Eastern standard time)",
+        "descriptionEn": "The SEC approved multiple spot Bitcoin ETPs for listing and trading, a key institutional adoption event for BTC.",
+    },
+    "2024-06-01": {
+        "labelEn": "QT slowdown",
+        "typeEn": "Liquidity pressure eases",
+        "timezoneEn": "UTC-4 (US Eastern daylight time)",
+        "descriptionEn": "The Fed lowered the monthly Treasury runoff cap from $60B to $25B, easing marginal dollar-liquidity pressure.",
+    },
+    "2024-09-18": {
+        "labelEn": "Fed rate cut",
+        "typeEn": "Liquidity easing signal",
+        "timezoneEn": "UTC-4 (US Eastern daylight time)",
+        "descriptionEn": "The Fed cut the target range by 50 bps to 4.75%-5.00%, an important pricing turn for risk assets.",
+    },
+    "2025-07-18": {
+        "labelEn": "GENIUS Act",
+        "typeEn": "US stablecoin law",
+        "timezoneEn": "UTC-4 (US Eastern daylight time)",
+        "descriptionEn": "The US signed the GENIUS Act, creating a federal framework for payment stablecoins.",
+    },
+    "2025-12-10": {
+        "labelEn": "Fed cuts again",
+        "typeEn": "Rate cut / reserve management",
+        "timezoneEn": "UTC-5 (US Eastern standard time)",
+        "descriptionEn": "The Fed cut the target range to 3.50%-3.75%. Earlier, it stopped QT and used Treasury-bill purchases to maintain ample reserves.",
+    },
+    "2026-06-05": {
+        "labelEn": "NFP beat",
+        "typeEn": "Rate-expectation shock",
+        "timezoneEn": "UTC-4 (US Eastern daylight time)",
+        "descriptionEn": "BLS reported a 172K gain in May nonfarm payrolls and a 4.3% unemployment rate, lifting high-rate expectations and pressuring risk assets.",
+    },
+}
 
-## 这张图在看什么
+for event in MARKET_EVENTS:
+    event.update(EVENT_TRANSLATIONS_EN.get(event["date"], {}))
 
-这张图主要用来观察加密市场里的几条流动性线索：BTC/ETH/SOL/BNB价格、BTC/ETH比值、稳定币规模、美国现货 BTC ETF累计净流入、美国2年期国债收益率。
+DATA_EXPLANATION_ZH_MD = """# USDT发行量 与 BTC/ETH
 
-## BTC / ETH / SOL / BNB
+## 用途
 
-BTC和ETH默认显示。SOL和BNB默认隐藏，可以点击图例开启。左侧坐标轴为百分比，`起点=0%` 表示图表样本起点价格归零后计算累计涨跌幅，方便和稳定币、ETF流入放在同一张图里比较节奏。
+观察 BTC、ETH、SOL、BNB、BTC/ETH比值、USDT、USDC、BTC ETF累计净流入、美国2Y利率。
 
-切到K线后，日、周、月、季会用对应周期的开、高、低、收。悬停窗里仍然显示美元价格和当期涨跌幅。
+## 价格
 
-## BTC/ETH比值
+BTC、ETH默认显示。SOL、BNB默认隐藏。百分比模式看起点涨跌幅；对数模式看起点对数变化；K线模式看开高低收。
 
-BTC/ETH比值默认隐藏，可以点击图例开启。比值使用 `BTC价格 / ETH价格` 计算，图上显示的是该比值相对样本起点的累计变化，悬停窗显示实际比值和当期变化。
+## 稳定币
 
-## USDT发行量、USDC发行量、USDT+USDC
+USDT、USDC来自 DefiLlama，单位为十亿美元。USDT+USDC默认显示，用来观察链上美元流动性。
 
-稳定币发行量来自 DefiLlama，单位为十亿美元。USDT+USDC是两者相加，默认显示。
+## ETF 与利率
 
-稳定币规模可以当成加密市场链上可用资金的参考。它反映的是市场里稳定币存量的变化，适合观察中长期流动性和资金迁移。
+BTC ETF累计净流入来自 Farside Investors。美国2Y利率来自 FRED，默认隐藏，用来观察政策利率预期。
 
-## BTC ETF累计净流入
+## 事件
 
-BTC ETF累计净流入来自 Farside Investors，单位为十亿美元。这里使用美国现货 BTC ETF每日总净流入的累计值，默认显示。
+事件标注显示当地 UTC±x 时区。例如非农 2026-06-05 使用 UTC-4（美国东部夏令时间）。
 
-ETF流入反映的是美国现货 ETF渠道的资金买卖压力。它和稳定币对应不同资金池：稳定币偏链上和交易所资金环境，ETF偏传统金融账户进入 BTC 的通道资金。
+## 时间
 
-## 美国2Y利率
-
-美国2年期国债收益率来自 FRED，默认隐藏。它常被用来观察市场对Fed政策利率路径的预期。
-
-2Y利率上行时，风险资产折现压力通常增加；2Y利率下行时，市场通常在定价货币环境放松或增长压力上升。
-
-## 事件标注
-
-底部事件标注用于记录宏观政策、监管变化、稳定币冲击和ETF相关事件。悬停窗会显示事件日期对应的地区时区，例如2026-06-05非农使用UTC-4（美国东部夏令时间）。事件用于辅助解释，因果关系仍需要结合价格、资金和利率同时判断。
-
-## 时间口径
-
-价格按UTC日线口径处理；事件标注保留事件地区时区；页面底部的刷新时间使用UTC+8。
+价格采用 UTC日线。刷新时间采用 UTC+8。
 """
+
+DATA_EXPLANATION_EN_MD = """# USDT Supply and BTC/ETH
+
+## Purpose
+
+Track BTC, ETH, SOL, BNB, the BTC/ETH ratio, USDT, USDC, cumulative spot BTC ETF net inflow, and the US 2Y yield.
+
+## Prices
+
+BTC and ETH are visible by default. SOL and BNB are hidden by default. Percent mode shows change from the chart start. Log mode shows log change from the chart start. Candle mode shows OHLC data.
+
+## Stablecoins
+
+USDT and USDC supply comes from DefiLlama and is shown in billions of dollars. USDT+USDC is visible by default and is used as a proxy for on-chain dollar liquidity.
+
+## ETF and Rates
+
+Cumulative spot BTC ETF net inflow comes from Farside Investors. The US 2Y yield comes from FRED, is hidden by default, and helps frame policy-rate expectations.
+
+## Events
+
+Event markers show the local UTC±x timezone. For example, the 2026-06-05 nonfarm payrolls marker uses UTC-4 (US Eastern daylight time).
+
+## Time
+
+Prices use UTC daily candles. Refresh time uses UTC+8.
+"""
+
+DATA_EXPLANATION_MD = DATA_EXPLANATION_ZH_MD
 
 
 def request_json(url: str, retries: int = 4, pause: float = 1.0) -> object:
@@ -656,9 +753,68 @@ resize();
     output_html.write_text(html_text.replace("__PAYLOAD__", payload), encoding="utf-8")
 
 
+DOC_TERMS = [
+    "BTC/ETH",
+    "Farside Investors",
+    "CryptoCompare",
+    "DefiLlama",
+    "USDT+USDC",
+    "BTC ETF",
+    "Candle mode",
+    "Percent mode",
+    "Log mode",
+    "Refresh time",
+    "stablecoins",
+    "stablecoin",
+    "liquidity",
+    "policy-rate",
+    "nonfarm payrolls",
+    "policy-rate expectations",
+    "spot BTC ETF net inflow",
+    "on-chain dollar liquidity",
+    "BTC",
+    "ETH",
+    "SOL",
+    "BNB",
+    "USDT",
+    "USDC",
+    "ETF",
+    "FRED",
+    "UTC",
+    "OHLC",
+    "USD",
+    "US 2Y yield",
+    "用途",
+    "价格",
+    "百分比模式",
+    "对数模式",
+    "K线模式",
+    "稳定币",
+    "ETF",
+    "利率",
+    "时间",
+    "刷新时间",
+    "美国2Y利率",
+    "发行量",
+    "链上美元流动性",
+    "累计净流入",
+    "政策利率预期",
+    "事件标注",
+    "时区",
+    "非农",
+]
+
+DOC_TERM_PATTERN = re.compile("|".join(re.escape(html.escape(term)) for term in sorted(DOC_TERMS, key=len, reverse=True)))
+
+
+def highlight_terms(text: str) -> str:
+    return DOC_TERM_PATTERN.sub(lambda match: f'<span class="term">{match.group(0)}</span>', text)
+
+
 def inline_markdown(text: str) -> str:
     escaped = html.escape(text)
-    return re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+    escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+    return highlight_terms(escaped)
 
 
 def render_markdown_document(markdown_text: str) -> str:
@@ -686,8 +842,9 @@ def render_markdown_document(markdown_text: str) -> str:
     return "\n".join(blocks)
 
 
-def render_data_explanation_html(markdown_text: str) -> str:
-    body = render_markdown_document(markdown_text)
+def render_data_explanation_html(zh_markdown: str, en_markdown: str) -> str:
+    zh_body = render_markdown_document(zh_markdown)
+    en_body = render_markdown_document(en_markdown)
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -702,19 +859,49 @@ def render_data_explanation_html(markdown_text: str) -> str:
     h2{{margin:26px 0 10px;font-size:21px;line-height:1.38}}
     h3{{margin:22px 0 8px;font-size:19px;line-height:1.38}}
     p{{margin:0 0 15px;color:#344054;font-size:18px}}
+    .term{{color:#2563eb;font-weight:650}}
     code{{padding:2px 5px;border-radius:4px;background:#f1f5f9;color:#0f172a;font-family:Consolas,monospace;font-size:.92em}}
     a{{color:#2563eb;text-decoration:underline;text-underline-offset:2px}}
     .back{{display:inline-flex;margin-bottom:14px;color:#2563eb;font-size:16px}}
+    .lang-switch{{position:fixed;right:16px;bottom:16px;z-index:5;display:inline-flex;align-items:center;justify-content:center;min-width:54px;height:34px;border:1px solid rgba(120,129,145,.34);border-radius:7px;background:rgba(255,255,255,.82);color:#2563eb;font-weight:700;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(4px);cursor:pointer}}
+    .lang-switch:hover{{background:#fff;color:#17202a}}
+    .doc-lang{{display:none}}
+    body[data-lang="zh"] .doc-zh{{display:block}}
+    body[data-lang="en"] .doc-en{{display:block}}
     @media (max-width:640px){{main{{padding:18px 10px 32px}}article{{padding:20px 18px}}h1{{font-size:28px}}h2{{font-size:20px}}p{{font-size:16px}}}}
   </style>
 </head>
 <body>
   <main>
-    <a class="back" href="usdt-speed-indicator.html">返回图表</a>
-    <article>
-      {body}
+    <a class="back" id="backLink" href="usdt-speed-indicator.html">返回图表</a>
+    <article class="doc-lang doc-zh">
+      {zh_body}
+    </article>
+    <article class="doc-lang doc-en">
+      {en_body}
     </article>
   </main>
+  <button class="lang-switch" id="langSwitch" type="button" aria-label="Switch language"></button>
+  <script>
+    const params=new URLSearchParams(location.search);
+    let lang=params.get("lang")==="en"?"en":"zh";
+    const backLink=document.getElementById("backLink");
+    const switcher=document.getElementById("langSwitch");
+    function applyLang(){{
+      document.body.dataset.lang=lang;
+      document.documentElement.lang=lang==="en"?"en":"zh-CN";
+      backLink.textContent=lang==="en"?"Back to chart":"返回图表";
+      backLink.href=`usdt-speed-indicator.html?lang=${{lang}}`;
+      switcher.textContent=lang==="en"?"中":"EN";
+    }}
+    switcher.addEventListener("click",()=>{{
+      lang=lang==="en"?"zh":"en";
+      params.set("lang",lang);
+      history.replaceState(null,"",`${{location.pathname}}?${{params.toString()}}`);
+      applyLang();
+    }});
+    applyLang();
+  </script>
 </body>
 </html>
 """
@@ -724,8 +911,8 @@ def write_data_explanation(output_html: Path) -> None:
     markdown_path = output_html.with_name("usdt-speed-indicator-data-explained.md")
     html_path = output_html.with_name("usdt-speed-indicator-data-explained.html")
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
-    markdown_path.write_text(DATA_EXPLANATION_MD, encoding="utf-8")
-    html_path.write_text(render_data_explanation_html(DATA_EXPLANATION_MD), encoding="utf-8")
+    markdown_path.write_text(DATA_EXPLANATION_ZH_MD, encoding="utf-8")
+    html_path.write_text(render_data_explanation_html(DATA_EXPLANATION_ZH_MD, DATA_EXPLANATION_EN_MD), encoding="utf-8")
 
 
 def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
@@ -801,14 +988,17 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     .home-link svg{width:18px;height:18px;stroke:currentColor}
     canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
     .tip{position:absolute;display:none;pointer-events:none;box-sizing:border-box;min-width:230px;max-width:390px;background:rgba(255,255,255,.10);border:1px solid rgba(120,129,145,.42);border-radius:6px;color:#17202a;padding:9px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(2px);overflow-wrap:anywhere;white-space:normal}
-    .footer-note{position:absolute;left:100px;right:18px;bottom:8px;z-index:2;display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#526071;font-size:11px;line-height:1.35;pointer-events:none}
+    .footer-note{position:absolute;left:100px;right:86px;bottom:8px;z-index:2;display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#526071;font-size:11px;line-height:1.35;pointer-events:none}
     .footer-note a{color:#2563eb;text-decoration:underline;text-underline-offset:2px;pointer-events:auto}
     .is-embed .footer-note{display:none}
-    @media (max-width:640px){.footer-note{left:92px;right:8px;bottom:8px;font-size:10.5px;gap:8px}}
+    .lang-switch{position:absolute;right:14px;bottom:8px;z-index:3;display:inline-flex;align-items:center;justify-content:center;min-width:52px;height:30px;border:1px solid rgba(120,129,145,.34);border-radius:7px;background:rgba(255,255,255,.82);color:#2563eb;font-size:12px;font-weight:700;box-shadow:0 8px 22px rgba(15,23,42,.10);backdrop-filter:blur(4px);cursor:pointer}
+    .lang-switch:hover{background:#fff;color:#17202a}
+    .is-embed .lang-switch{display:none}
+    @media (max-width:640px){.footer-note{left:92px;right:78px;bottom:8px;font-size:10.5px;gap:8px}.lang-switch{right:10px;bottom:8px;min-width:48px}}
   </style>
 </head>
 <body>
-<div class="page"><a class="home-link" href="../../index.html" aria-label="返回主页" title="返回主页"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></a><canvas id="chart"></canvas><div class="tip" id="tip"></div><div class="footer-note" id="footerNote"></div></div>
+<div class="page"><a class="home-link" id="homeLink" href="../../index.html" aria-label="返回主页" title="返回主页"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></a><canvas id="chart"></canvas><div class="tip" id="tip"></div><div class="footer-note" id="footerNote"></div><button class="lang-switch" id="langSwitch" type="button" aria-label="Switch language"></button></div>
 <script>
 const P=__PAYLOAD__;
 const rawRows=P.rows.map(r=>({...r,t:new Date(r.date).getTime()}));
@@ -816,29 +1006,59 @@ const canvas=document.getElementById("chart");
 const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
 const footerNote=document.getElementById("footerNote");
+const homeLink=document.getElementById("homeLink");
+const langSwitch=document.getElementById("langSwitch");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
 const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleDownAlpha:.42,usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us2y:"rgba(248,113,113,.82)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
-if(footerNote)footerNote.innerHTML=`<span>刷新时间：UTC+8 ${P.generatedAt}</span><span>数据来源：${P.dataSources}</span><a href="usdt-speed-indicator-data-explained.html" target="_blank" rel="noopener">数据解释</a>`;
+const params=new URLSearchParams(location.search);
+let lang=params.get("lang")==="en"?"en":"zh";
+const text={
+  zh:{title:"USDT发行量 与 BTC/ETH",refresh:"刷新时间",sources:"数据来源",explain:"数据解释",home:"返回主页",axisPct:"价格与BTC/ETH比值（起点=0%）",axisLog:"价格与BTC/ETH比值（对数变化）",axisSupply:"USDT / USDC / ETF累计净流入（$B）",time:"时间",type:"类型",open:"开",high:"高",low:"低",close:"收",period_day:"日",period_week:"周",period_month:"月",period_quarter:"季",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH比值",series_usdt:"USDT发行量",series_usdc:"USDC发行量",series_stable:"USDT+USDC",series_btcEtfFlow:"BTC ETF累计净流入",series_us2y:"美国2Y利率",dataSources:"CryptoCompare、DefiLlama、FRED、Farside Investors"},
+  en:{title:"USDT Supply and BTC/ETH",refresh:"Refresh",sources:"Sources",explain:"Data notes",home:"Home",axisPct:"Price and BTC/ETH ratio (start = 0%)",axisLog:"Price and BTC/ETH ratio (log change)",axisSupply:"USDT / USDC / ETF cumulative net inflow ($B)",time:"Time",type:"Type",open:"O",high:"H",low:"L",close:"C",period_day:"D",period_week:"W",period_month:"M",period_quarter:"Q",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH ratio",series_usdt:"USDT supply",series_usdc:"USDC supply",series_stable:"USDT+USDC",series_btcEtfFlow:"Spot BTC ETF cum. net inflow",series_us2y:"US 2Y yield",dataSources:"CryptoCompare, DefiLlama, FRED, Farside Investors"}
+};
+function tr(key){return text[lang]?.[key]||text.zh[key]||key}
+function colon(){return lang==="en"?":":"："}
+function seriesLabel(item){return tr(`series_${item.key}`)}
+function eventText(event,key){return lang==="en"&&event[`${key}En`]?event[`${key}En`]:event[key]||""}
+function applyLanguageChrome(){
+  document.documentElement.lang=lang==="en"?"en":"zh-CN";
+  document.title=tr("title");
+  if(homeLink){homeLink.setAttribute("aria-label",tr("home"));homeLink.setAttribute("title",tr("home"))}
+  if(footerNote)footerNote.innerHTML=`<span>${tr("refresh")}${colon()} UTC+8 ${P.generatedAt}</span><span>${tr("sources")}${colon()} ${tr("dataSources")}</span><a href="usdt-speed-indicator-data-explained.html?lang=${lang}" target="_blank" rel="noopener">${tr("explain")}</a>`;
+  if(langSwitch)langSwitch.textContent=lang==="en"?"中":"EN";
+}
+if(langSwitch)langSwitch.addEventListener("click",()=>{
+  lang=lang==="en"?"zh":"en";
+  params.set("lang",lang);
+  history.replaceState(null,"",`${location.pathname}?${params.toString()}`);
+  clearTip();
+  applyLanguageChrome();
+  draw();
+});
 const series=[
-  {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15,kind:"candle"},
-  {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05,kind:"candle"},
-  {key:"sol",label:"SOL",color:colors.sol,scale:"ratio",width:1.05,kind:"candle"},
-  {key:"bnb",label:"BNB",color:colors.bnb,scale:"ratio",width:1.05,kind:"candle"},
-  {key:"btcEthRatio",label:"BTC/ETH比值",color:colors.btcEthRatio,scale:"ratio",width:1.05,format:"number"},
-  {key:"usdt",label:"USDT发行量",color:colors.usdt,scale:"supply",width:1.15},
-  {key:"usdc",label:"USDC发行量",color:colors.usdc,scale:"supply",width:1.15},
-  {key:"stable",label:"USDT+USDC",color:colors.stable,scale:"supply",width:1.1},
-  {key:"btcEtfFlow",label:"BTC ETF累计净流入",color:colors.btcEtfFlow,scale:"supply",width:1.05,valueDivisor:1000},
-  {key:"us2y",label:"美国2Y利率",color:colors.us2y,scale:"rate",width:1.1}
+  {key:"btc",color:colors.btc,scale:"ratio",width:1.15,kind:"candle"},
+  {key:"eth",color:colors.eth,scale:"ratio",width:1.05,kind:"candle"},
+  {key:"sol",color:colors.sol,scale:"ratio",width:1.05,kind:"candle"},
+  {key:"bnb",color:colors.bnb,scale:"ratio",width:1.05,kind:"candle"},
+  {key:"btcEthRatio",color:colors.btcEthRatio,scale:"ratio",width:1.05,format:"number"},
+  {key:"usdt",color:colors.usdt,scale:"supply",width:1.15},
+  {key:"usdc",color:colors.usdc,scale:"supply",width:1.15},
+  {key:"stable",color:colors.stable,scale:"supply",width:1.1},
+  {key:"btcEtfFlow",color:colors.btcEtfFlow,scale:"supply",width:1.05,valueDivisor:1000},
+  {key:"us2y",color:colors.us2y,scale:"rate",width:1.1}
 ];
-const periodNames={day:"日",week:"周",month:"月",quarter:"季"};
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],rangeBoxes=[],modeBoxes=[],period="day",priceMode="line",rangeMode="all",hoverPeriod=null,hoverRange=null,hoverMode=null,hidden={sol:true,bnb:true,btcEthRatio:true,usdt:true,usdc:true,us2y:true};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],scaleBoxes=[],modeBoxes=[],period="day",priceMode="line",valueScale="pct",hoverPeriod=null,hoverScale=null,hoverMode=null,hidden={sol:true,bnb:true,btcEthRatio:true,usdt:true,usdc:true,us2y:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function finite(v){return v!=null&&Number.isFinite(v)}
-function dayLabel(date){return `${date}（${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`}
-function periodTitle(r){return period==="day"?dayLabel(r.date):period==="quarter"?`${quarterKey(r.t)}（季）`:`${r.date}（${periodNames[period]}）`}
+function periodName(key){return tr(`period_${key}`)}
+function dayLabel(date){return lang==="en"?date:`${date}（${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`}
+function periodTitle(r){
+  if(period==="day")return dayLabel(r.date);
+  const value=period==="quarter"?quarterKey(r.t):r.date,label=periodName(period);
+  return lang==="en"?`${value} (${label})`:`${value}（${label}）`;
+}
 function weekKey(t){const d=new Date(t),day=d.getUTCDay(),diff=(day+6)%7,s=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-diff));return s.toISOString().slice(0,10)}
 function monthKey(t){const d=new Date(t);return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`}
 function quarterKey(t){const d=new Date(t);return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth()/3)+1}`}
@@ -873,14 +1093,15 @@ function ratePct(v){return v==null?"-":Number(v).toFixed(2)+"%"}
 function flowValue(v){if(v==null)return "-";const n=Number(v),sign=n>0?"+":"";return Math.abs(n)>=1000?sign+"$"+(n/1000).toFixed(2)+"B":sign+"$"+n.toFixed(1)+"M"}
 function pct(v,d=1){return v==null?"-":Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})+"%"}
 function axisPct(v){if(v==null)return "-";const n=Math.round(Number(v));return n===0?"0%":(n>0?"+":"")+n.toLocaleString("en-US")+"%"}
-function ratioValue(item,r,suffix=""){const key=item.candle||item.key,base=ratioBase[key],source=suffix?`${key}${suffix}`:key;return base&&r[source]!=null?(r[source]/base-1)*100:null}
+function ratioValue(item,r,suffix=""){const key=item.candle||item.key,base=ratioBase[key],source=suffix?`${key}${suffix}`:key;if(!base||r[source]==null)return null;const ratio=r[source]/base;return valueScale==="log"?Math.log(ratio)*100:(ratio-1)*100}
 function plotValue(item,r){const v=item.scale==="ratio"?ratioValue(item,r):r[item.key];return v!=null&&item.valueDivisor?v/item.valueDivisor:v}
-function ohlcText(item,r){const key=item.candle;return `开 ${usd(r[`${key}Open`])} / 高 ${usd(r[`${key}High`])} / 低 ${usd(r[`${key}Low`])} / 收 ${usd(r[key])}`}
-function valueText(item,r){if(item.scale==="ratio"){const daily=r[dailyKey(item.key)];if(r[item.key]==null)return "-";if(item.kind==="candle"&&priceMode==="candle")return `${ohlcText({candle:item.key},r)}（${signedPct(daily)}）`;if(item.format==="number")return Number(r[item.key]).toFixed(2)+"（"+signedPct(daily)+"）";return usd(r[item.key])+"（"+signedPct(daily)+"）"}if(item.key==="btcEtfFlow")return flowValue(r[item.key]);if(item.scale==="rate")return ratePct(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
+function wrapNote(text){return lang==="en"?` (${text})`:`（${text}）`}
+function ohlcText(item,r){const key=item.candle;return `${tr("open")} ${usd(r[`${key}Open`])} / ${tr("high")} ${usd(r[`${key}High`])} / ${tr("low")} ${usd(r[`${key}Low`])} / ${tr("close")} ${usd(r[key])}`}
+function valueText(item,r){if(item.scale==="ratio"){const daily=r[dailyKey(item.key)];if(r[item.key]==null)return "-";if(item.kind==="candle"&&priceMode==="candle")return `${ohlcText({candle:item.key},r)}${wrapNote(signedPct(daily))}`;if(item.format==="number")return Number(r[item.key]).toFixed(2)+wrapNote(signedPct(daily));return usd(r[item.key])+wrapNote(signedPct(daily))}if(item.key==="btcEtfFlow")return flowValue(r[item.key]);if(item.scale==="rate")return ratePct(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
 function extentValues(item,r){return item.kind==="candle"&&priceMode==="candle"?["Open","High","Low",""].map(s=>ratioValue(item,r,s)):[plotValue(item,r)]}
 function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.flatMap(r=>extentValues(item,r)).filter(finite)});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
-function baseRange(){const end=displayEnd();return rangeMode==="twoYear"?[Math.max(rows[0].t,rows[rows.length-1].t-DAY*730),end]:[rows[0].t,end]}
+function baseRange(){return [rows[0].t,displayEnd()]}
 function currentRange(){return zoom||baseRange()}
 function visibleRows(){const [t0,t1]=currentRange();const sample=rows.filter(r=>r.t>=t0&&r.t<=t1);return sample.length?sample:rows}
 function resize(){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
@@ -896,29 +1117,23 @@ function drawLegend(x,y,maxX){
   ctx.font="12px Microsoft YaHei,Arial";
   let cur=x,rowY=y;
   series.forEach(item=>{
-    const labelW=ctx.measureText(item.label).width,total=labelW+68,off=hidden[item.key];
+    const label=seriesLabel(item),labelW=ctx.measureText(label).width,total=labelW+68,off=hidden[item.key];
     if(cur>x&&cur+total>maxX){cur=x;rowY+=20}
     legendBoxes.push({key:item.key,x0:cur-5,y0:rowY-12,x1:cur+total-16,y1:rowY+9});
     ctx.globalAlpha=off?.28:1;
     ctx.strokeStyle=off?"rgba(82,96,113,.45)":item.color;
     ctx.fillStyle=off?"rgba(82,96,113,.58)":colors.text;
-    ctx.lineWidth=item.kind==="candle"?1:2;
-    if(item.kind==="candle"){
-      ctx.beginPath();ctx.moveTo(cur+14,rowY-8);ctx.lineTo(cur+14,rowY+8);ctx.stroke();
-      ctx.fillStyle="rgba(255,255,255,.72)";ctx.fillRect(cur+9,rowY-5,10,10);ctx.strokeRect(cur+9,rowY-5,10,10);
-      ctx.fillStyle=off?"rgba(82,96,113,.58)":colors.text;
-    }else{
-      ctx.setLineDash(item.dash||[]);
-      ctx.beginPath();ctx.moveTo(cur,rowY);ctx.lineTo(cur+28,rowY);ctx.stroke();ctx.setLineDash([]);
-    }
-    ctx.textAlign="left";ctx.fillText(item.label,cur+36,rowY+4);
+    ctx.lineWidth=2;
+    ctx.setLineDash(item.dash||[]);
+    ctx.beginPath();ctx.moveTo(cur,rowY+3);ctx.lineTo(cur+9,rowY-3);ctx.lineTo(cur+18,rowY);ctx.lineTo(cur+28,rowY-7);ctx.stroke();ctx.setLineDash([]);
+    ctx.textAlign="left";ctx.fillText(label,cur+36,rowY+4);
     ctx.globalAlpha=1;
     cur+=total;
   });
 }
 function drawPeriodTabs(x,y){
   periodBoxes=[];
-  const labels=[["day","日"],["week","周"],["month","月"],["quarter","季"]];
+  const labels=[["day",periodName("day")],["week",periodName("week")],["month",periodName("month")],["quarter",periodName("quarter")]];
   ctx.font="12px Microsoft YaHei,Arial";
   labels.forEach(([key,label],i)=>{
     const w=38,h=24,left=x+i*(w+6),active=period===key,hovered=hoverPeriod===key;
@@ -932,24 +1147,26 @@ function drawPeriodTabs(x,y){
   ctx.lineWidth=1;
 }
 function hitPeriod(p){return periodBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
-function drawRangeTabs(x,y){
-  rangeBoxes=[];
-  const labels=[["twoYear","近两年"],["all","所有时间"]];
+function drawScaleTabs(x,y){
+  scaleBoxes=[];
+  const labels=[["pct","%"],["log","ln"]];
   ctx.font="12px Microsoft YaHei,Arial";
   let left=x;
   labels.forEach(([key,label])=>{
-    const w=label==="所有时间"?62:50,h=24,active=rangeMode===key,hovered=hoverRange===key;
-    rangeBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});
+    const w=38,h=24,active=valueScale===key,hovered=hoverScale===key;
+    scaleBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});
     ctx.strokeStyle=active?"#60a5fa":hovered?"#93c5fd":"rgba(71,85,105,.42)";
     ctx.lineWidth=active||hovered?1.35:.9;
     roundRect(left,y,w,h,7);ctx.stroke();
     ctx.fillStyle=hovered?"#17202a":active?"#17202a":"rgba(71,85,105,.58)";
+    ctx.font=key==="pct"?"700 12px Microsoft YaHei,Arial":"700 11px Microsoft YaHei,Arial";
     ctx.textAlign="center";ctx.fillText(label,left+w/2,y+16);
     left+=w+6;
   });
+  ctx.font="12px Microsoft YaHei,Arial";
   ctx.lineWidth=1;
 }
-function hitRange(p){return rangeBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
+function hitScale(p){return scaleBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawModeTabs(x,y){
   modeBoxes=[];
   const labels=[["line"],["candle"]];
@@ -1018,14 +1235,14 @@ function drawEvents(activeEventDate=null){
   ctx.font="11px Microsoft YaHei,Arial";
   const laneCount=box.x1-box.x0<520?5:3,lanes=Array(laneCount).fill(box.x0-999),visible=events.filter(e=>e.t>=box.t0&&e.t<=box.t1).sort((a,b)=>a.t-b.t);
   visible.forEach(event=>{
-    const active=activeEventDate===event.date,x=xScale(event.t),pad=7,w=Math.ceil(ctx.measureText(event.label).width+pad*2),h=18;
+    const label=eventText(event,"label"),active=activeEventDate===event.date,x=xScale(event.t),pad=7,w=Math.ceil(ctx.measureText(label).width+pad*2),h=18;
     let lane=lanes.findIndex(right=>right<=x-w/2-4);
     if(lane<0)lane=lanes.indexOf(Math.min(...lanes));
     const y=box.y1-26-lane*22,left=Math.max(box.x0+2,Math.min(box.x1-w-2,x-w/2));
     lanes[lane]=left+w;
     ctx.save();ctx.strokeStyle=active?"rgba(37,99,235,.38)":"rgba(147,197,253,.18)";ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x,box.y1);ctx.lineTo(x,y+h);ctx.stroke();
     ctx.fillStyle=active?colors.eventActiveFill:colors.eventFill;ctx.strokeStyle=active?colors.event:colors.eventBorder;roundRect(left,y,w,h,9);ctx.fill();ctx.stroke();
-    ctx.fillStyle=active?colors.eventTextActive:colors.eventText;ctx.textAlign="center";ctx.fillText(event.label,left+w/2,y+12.5);ctx.restore();
+    ctx.fillStyle=active?colors.eventTextActive:colors.eventText;ctx.textAlign="center";ctx.fillText(label,left+w/2,y+12.5);ctx.restore();
     eventBoxes.push({event,x0:left,y0:y,x1:left+w,y1:y+h});
   });
 }
@@ -1040,19 +1257,19 @@ function draw(active,eventDate=null){
   const [rateMin0,rateMax0]=extent(activeKeys("rate",["us2y"]),sample),ratePad=Math.max((rateMax0-rateMin0)*.18,.15);
   box={x0,x1,y0,y1,t0,t1,ratioMin:Math.min(ratioMin0-ratioPad,0),ratioMax:Math.max(ratioMax0+ratioPad,10),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1),rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
-  ctx.fillStyle=colors.text;ctx.font="700 21px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText("USDT发行量 与 BTC/ETH",w/2,titleY);
-  const periodWidth=170,rangeWidth=118,modeWidth=74,controlY=compactHeader?titleY+18:titleY-18;
-  let periodX=x1-periodWidth,rangeX=periodX-rangeWidth-10,modeX=rangeX-modeWidth-10,periodY=controlY;
-  if(compactHeader){modeX=x0;rangeX=x1-rangeWidth;periodX=x0;periodY=controlY+30}
-  drawLegend(x0,legendY,x1);drawModeTabs(modeX,controlY);drawRangeTabs(rangeX,controlY);drawPeriodTabs(periodX,periodY);
+  ctx.fillStyle=colors.text;ctx.font="700 21px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText(tr("title"),w/2,titleY);
+  const periodWidth=170,scaleWidth=82,modeWidth=74,controlY=compactHeader?titleY+18:titleY-18;
+  let periodX=x1-periodWidth,scaleX=periodX-scaleWidth-10,modeX=scaleX-modeWidth-10,periodY=controlY;
+  if(compactHeader){modeX=x0;scaleX=x1-scaleWidth;periodX=x0;periodY=controlY+30}
+  drawLegend(x0,legendY,x1);drawModeTabs(modeX,controlY);drawScaleTabs(scaleX,controlY);drawPeriodTabs(periodX,periodY);
   const startYear=new Date(box.t0).getUTCFullYear(),endYear=new Date(box.t1).getUTCFullYear();
   for(let year=startYear;year<=endYear;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);if(priceMode==="candle"){["btc","eth","sol","bnb"].forEach(drawCandles)}ctx.restore();
   drawEvents(eventDate);
-  ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("价格与BTC/ETH比值（起点=0%）",0,0);ctx.restore();
-  ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText("USDT / USDC / ETF累计净流入（$B）",0,0);ctx.restore();
+  ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText(valueScale==="log"?tr("axisLog"):tr("axisPct"),0,0);ctx.restore();
+  ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText(tr("axisSupply"),0,0);ctx.restore();
   if(active!=null){const r=rows[active],x=xScale(r.t);ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.62)";ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);series.forEach(item=>{if(priceMode==="candle"&&item.kind==="candle")return;const v=plotValue(item,r);if(hidden[item.key]||v==null)return;ctx.fillStyle="#fff";ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,yFor(item,v),3.3,0,Math.PI*2);ctx.fill();ctx.stroke()})}
 }
 function clampX(x){return Math.max(box.x0,Math.min(box.x1,x))}
@@ -1082,7 +1299,7 @@ function showTipNow(p){
       draw(null,e.date);const x=xScale(e.t);
       ctx.setLineDash([4,5]);ctx.strokeStyle="rgba(37,99,235,.42)";ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);
       tip.className="tip";
-      tip.innerHTML=`<b>${e.label}</b><br>时间：${e.dateLabel} ${e.timezone||""}<br>类型：${e.type}<br>${e.description}`;
+      tip.innerHTML=`<b>${eventText(e,"label")}</b><br>${tr("time")}${colon()} ${e.dateLabel} ${eventText(e,"timezone")}<br>${tr("type")}${colon()} ${eventText(e,"type")}<br>${eventText(e,"description")}`;
       hoverKey=key;
     }
     tip.style.display="block";positionTip(p,92);
@@ -1091,7 +1308,7 @@ function showTipNow(p){
   const i=nearest(p.x),r=rows[i],key=`point:${period}:${i}`;
   if(hoverKey!==key){
     draw(i);
-    const lines=series.filter(item=>!hidden[item.key]).map(item=>`${item.label}：${valueText(item,r)}`);
+    const lines=series.filter(item=>!hidden[item.key]).map(item=>`${seriesLabel(item)}${colon()} ${valueText(item,r)}`);
     tip.className="tip";
     tip.innerHTML=`<b>${periodTitle(r)}</b><br>${lines.join("<br>")}`;
     hoverKey=key;
@@ -1099,13 +1316,14 @@ function showTipNow(p){
   tip.style.display="block";positionTip(p,70);
 }
 function showTip(p){pendingPoint=p;if(hoverFrame)return;hoverFrame=true;requestAnimationFrame(()=>{hoverFrame=false;const next=pendingPoint;pendingPoint=null;if(next)showTipNow(next)})}
-canvas.addEventListener("click",e=>{const p=pointer(e),mode=hitMode(p),range=hitRange(p),tab=hitPeriod(p);if(mode){priceMode=mode.key;hoverMode=mode.key;clearTip();draw();return}if(range){rangeMode=range.key;hoverRange=range.key;zoom=null;clearTip();draw();return}if(tab){period=tab.key;hoverPeriod=tab.key;zoom=null;clearTip();draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];clearTip();draw()});
-canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitMode(p)||hitRange(p)||hitPeriod(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};clearTip()});
-canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;clearTip();draw();drawSelection();return}const mode=hitMode(p);if(mode){if(hoverMode!==mode.key){hoverMode=mode.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}const range=hitRange(p);if(range){if(hoverRange!==range.key){hoverRange=range.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}const tab=hitPeriod(p);if(tab){if(hoverPeriod!==tab.key){hoverPeriod=tab.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}if(hoverMode!==null||hoverRange!==null||hoverPeriod!==null){hoverMode=null;hoverRange=null;hoverPeriod=null;clearTip();draw()}showTip(p)});
+canvas.addEventListener("click",e=>{const p=pointer(e),mode=hitMode(p),scale=hitScale(p),tab=hitPeriod(p);if(mode){priceMode=mode.key;hoverMode=mode.key;clearTip();draw();return}if(scale){valueScale=scale.key;hoverScale=scale.key;clearTip();draw();return}if(tab){period=tab.key;hoverPeriod=tab.key;zoom=null;clearTip();draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];clearTip();draw()});
+canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitMode(p)||hitScale(p)||hitPeriod(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};clearTip()});
+canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;clearTip();draw();drawSelection();return}const mode=hitMode(p);if(mode){if(hoverMode!==mode.key){hoverMode=mode.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}const scale=hitScale(p);if(scale){if(hoverScale!==scale.key){hoverScale=scale.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}const tab=hitPeriod(p);if(tab){if(hoverPeriod!==tab.key){hoverPeriod=tab.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}if(hoverMode!==null||hoverScale!==null||hoverPeriod!==null){hoverMode=null;hoverScale=null;hoverPeriod=null;clearTip();draw()}showTip(p)});
 window.addEventListener("mouseup",()=>{if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1);if(Math.abs(x1-x0)>12){const a=timeAtX(x0),b=timeAtX(x1);zoom=[Math.min(a,b),Math.max(a,b)]}drag=null;clearTip();draw()});
-canvas.addEventListener("mouseleave",()=>{if(drag)return;hoverMode=null;hoverRange=null;hoverPeriod=null;clearTip();canvas.style.cursor="default";draw()});
+canvas.addEventListener("mouseleave",()=>{if(drag)return;hoverMode=null;hoverScale=null;hoverPeriod=null;clearTip();canvas.style.cursor="default";draw()});
 canvas.addEventListener("dblclick",()=>{zoom=null;drag=null;clearTip();draw()});
 window.addEventListener("resize",resize);
+applyLanguageChrome();
 refreshRows();
 resize();
 </script>
