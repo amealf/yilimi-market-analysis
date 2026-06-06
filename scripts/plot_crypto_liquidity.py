@@ -631,7 +631,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     .home-link:hover{color:#17202a;background:rgba(255,255,255,.94)}
     .home-link svg{width:18px;height:18px;stroke:currentColor}
     canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
-    .tip{position:absolute;display:none;pointer-events:none;box-sizing:border-box;min-width:230px;max-width:390px;background:rgba(255,255,255,.20);border:1px solid rgba(120,129,145,.42);border-radius:6px;color:#17202a;padding:9px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(2px);overflow-wrap:anywhere;white-space:normal}
+    .tip{position:absolute;display:none;pointer-events:none;box-sizing:border-box;min-width:230px;max-width:390px;background:rgba(255,255,255,.10);border:1px solid rgba(120,129,145,.42);border-radius:6px;color:#17202a;padding:9px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(2px);overflow-wrap:anywhere;white-space:normal}
   </style>
 </head>
 <body>
@@ -644,7 +644,7 @@ const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",candleLine:"rgba(17,17,17,.56)",candleLineSoft:"rgba(17,17,17,.34)",candleUp:"rgba(255,255,255,.84)",candleDown:"rgba(17,17,17,.48)",candleDownSoft:"rgba(17,17,17,.28)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us2y:"rgba(248,113,113,.82)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",candleUpLine:"rgba(185,185,185,.90)",candleUpFill:"rgba(245,245,245,.90)",candleDownLine:"rgba(85,85,85,.90)",candleDownFill:"rgba(120,120,120,.90)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us2y:"rgba(248,113,113,.82)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const series=[
   {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15},
   {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05},
@@ -692,24 +692,25 @@ function signedPct(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":""
 function ratePct(v){return v==null?"-":Number(v).toFixed(2)+"%"}
 function flowValue(v){if(v==null)return "-";const n=Number(v),sign=n>0?"+":"";return Math.abs(n)>=1000?sign+"$"+(n/1000).toFixed(2)+"B":sign+"$"+n.toFixed(1)+"M"}
 function pct(v,d=1){return v==null?"-":Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})+"%"}
-function multiple(v){return v==null?"-":Number(v/100).toLocaleString("en-US",{maximumFractionDigits:0,minimumFractionDigits:0})}
-function ratioValue(item,r,suffix=""){const key=item.candle||item.key,base=ratioBase[key],source=suffix?`${key}${suffix}`:key;return base&&r[source]!=null?r[source]/base*100:null}
+function axisPct(v){if(v==null)return "-";const n=Math.round(Number(v));return n===0?"0%":(n>0?"+":"")+n.toLocaleString("en-US")+"%"}
+function ratioValue(item,r,suffix=""){const key=item.candle||item.key,base=ratioBase[key],source=suffix?`${key}${suffix}`:key;return base&&r[source]!=null?(r[source]/base-1)*100:null}
 function plotValue(item,r){const v=item.scale==="ratio"?ratioValue(item,r):r[item.key];return v!=null&&item.valueDivisor?v/item.valueDivisor:v}
 function ohlcText(item,r){const key=item.candle;return `开 ${usd(r[`${key}Open`])} / 高 ${usd(r[`${key}High`])} / 低 ${usd(r[`${key}Low`])} / 收 ${usd(r[key])}`}
 function valueText(item,r){if(item.scale==="ratio"){const daily=item.key==="btc"?r.btcDaily:r.ethDaily;if(r[item.key]==null)return "-";return priceMode==="candle"?`${ohlcText({candle:item.key},r)}（${signedPct(daily)}）`:usd(r[item.key])+"（"+signedPct(daily)+"）"}if(item.key==="btcEtfFlow")return flowValue(r[item.key]);if(item.scale==="rate")return ratePct(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
 function extentValues(item,r){return item.scale==="ratio"&&priceMode==="candle"?["Open","High","Low",""].map(s=>ratioValue(item,r,s)):[plotValue(item,r)]}
 function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.flatMap(r=>extentValues(item,r)).filter(finite)});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
-function baseRange(){const end=displayEnd();return rangeMode==="year"?[Math.max(rows[0].t,rows[rows.length-1].t-DAY*365),end]:[rows[0].t,end]}
+function baseRange(){const end=displayEnd();return rangeMode==="twoYear"?[Math.max(rows[0].t,rows[rows.length-1].t-DAY*730),end]:[rows[0].t,end]}
 function currentRange(){return zoom||baseRange()}
 function visibleRows(){const [t0,t1]=currentRange();const sample=rows.filter(r=>r.t>=t0&&r.t<=t1);return sample.length?sample:rows}
 function resize(){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
 function xScale(t){return box.x0+(t-box.t0)/(box.t1-box.t0)*(box.x1-box.x0)}
-function yRatio(v){return box.y1-(Math.log(v)-box.ratioMin)/(box.ratioMax-box.ratioMin)*(box.y1-box.y0)}
+function yRatio(v){return box.y1-(v-box.ratioMin)/(box.ratioMax-box.ratioMin)*(box.y1-box.y0)}
 function ySupply(v){return box.y1-(v-box.supplyMin)/(box.supplyMax-box.supplyMin)*(box.y1-box.y0)}
 function yRate(v){return box.y1-(v-box.rateMin)/(box.rateMax-box.rateMin)*(box.y1-box.y0)}
 function yFor(item,v){if(item.scale==="ratio")return yRatio(v);if(item.scale==="rate")return yRate(v);return ySupply(v)}
 function gridLine(y){ctx.strokeStyle=colors.grid;ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(box.x0,y);ctx.lineTo(box.x1,y);ctx.stroke()}
+function niceTicks(min,max,n){const span=Math.max(1e-9,max-min),raw=span/Math.max(1,n),pow=Math.pow(10,Math.floor(Math.log10(raw))),base=[1,2,5,10].find(x=>x*pow>=raw)*pow,start=Math.ceil(min/base)*base,out=[];for(let v=start;v<=max+base*.5;v+=base)out.push(v);return out}
 function drawLegend(x,y,maxX){
   legendBoxes=[];
   ctx.font="12px Microsoft YaHei,Arial";
@@ -753,7 +754,7 @@ function drawPeriodTabs(x,y){
 function hitPeriod(p){return periodBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawRangeTabs(x,y){
   rangeBoxes=[];
-  const labels=[["year","近一年"],["all","所有时间"]];
+  const labels=[["twoYear","近两年"],["all","所有时间"]];
   ctx.font="12px Microsoft YaHei,Arial";
   let left=x;
   labels.forEach(([key,label])=>{
@@ -794,21 +795,20 @@ function drawModeTabs(x,y){
 }
 function hitMode(p){return modeBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawAxes(){
-  [10,100,1000,10000,100000].forEach(v=>{if(Math.log(v)<box.ratioMin||Math.log(v)>box.ratioMax)return;const y=yRatio(v);ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(multiple(v),box.x0-9,y+4)});
+  niceTicks(box.ratioMin,box.ratioMax,6).forEach(v=>{const y=yRatio(v);ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(axisPct(v),box.x0-9,y+4)});
   [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
   if(!hidden.us2y)[box.rateMin,(box.rateMin+box.rateMax)/2,box.rateMax].forEach(v=>{const y=yRate(v);ctx.fillStyle=colors.us2y;ctx.textAlign="left";ctx.fillText(ratePct(v),box.x1+68,y+4)});
 }
 function drawCandles(key){
   if(hidden[key])return;
-  const item={key,candle:key},count=Math.max(visibleRows().length,1),bodyW=Math.max(.8,Math.min(period==="quarter"?22:period==="month"?16:period==="week"?11:7,(box.x1-box.x0)/count*.70));
-  const edge=key==="eth"?colors.candleLineSoft:colors.candleLine,down=key==="eth"?colors.candleDownSoft:colors.candleDown;
+  const item={key,candle:key},count=Math.max(visibleRows().length,1),bodyW=Math.max(.8,Math.min(period==="quarter"?16:period==="month"?12:period==="week"?8:5,(box.x1-box.x0)/count*.48));
   rows.forEach(r=>{
     const o=ratioValue(item,r,"Open"),h=ratioValue(item,r,"High"),l=ratioValue(item,r,"Low"),c=ratioValue(item,r);
     if([o,h,l,c].some(v=>!finite(v)))return;
     const x=xScale(r.t);
     if(x<box.x0-bodyW||x>box.x1+bodyW)return;
     const yO=yRatio(o),yH=yRatio(h),yL=yRatio(l),yC=yRatio(c),top=Math.min(yO,yC),bottom=Math.max(yO,yC),bodyH=Math.max(1,bottom-top);
-    ctx.strokeStyle=edge;ctx.fillStyle=c>=o?colors.candleUp:down;ctx.lineWidth=.8;
+    ctx.strokeStyle=c>=o?colors.candleUpLine:colors.candleDownLine;ctx.fillStyle=c>=o?colors.candleUpFill:colors.candleDownFill;ctx.lineWidth=.8;
     ctx.beginPath();if(yH<top){ctx.moveTo(x,yH);ctx.lineTo(x,top)}if(yL>top+bodyH){ctx.moveTo(x,top+bodyH);ctx.lineTo(x,yL)}ctx.stroke();
     ctx.fillRect(x-bodyW/2,top,bodyW,bodyH);ctx.strokeRect(x-bodyW/2,top,bodyW,bodyH);
   });
@@ -853,16 +853,16 @@ function draw(active,eventDate=null){
   const axisLeft=76,axisRight=86,titleY=outer+14,legendY=outer+(compactHeader?116:46),xLabelGap=isEmbed?35:38;
   const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+(compactHeader?230:82),y1=h-outer-xLabelGap;
   const [t0,t1]=currentRange(),sample=visibleRows();
-  const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample);
+  const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample),ratioPad=Math.max((ratioMax0-ratioMin0)*.12,8);
   const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable","btcEtfFlow"]),sample);
   const [rateMin0,rateMax0]=extent(activeKeys("rate",["us2y"]),sample),ratePad=Math.max((rateMax0-rateMin0)*.18,.15);
-  box={x0,x1,y0,y1,t0,t1,ratioMin:Math.log(Math.max(ratioMin0*.75,.01)),ratioMax:Math.log(ratioMax0*1.18),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1),rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad};
+  box={x0,x1,y0,y1,t0,t1,ratioMin:Math.min(ratioMin0-ratioPad,0),ratioMax:Math.max(ratioMax0+ratioPad,10),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1),rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   ctx.fillStyle=colors.text;ctx.font="700 21px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText("USDT发行量 与 BTC/ETH",w/2,titleY);
   const periodWidth=170,rangeWidth=118,modeWidth=74,controlY=compactHeader?titleY+18:titleY-18;
   let periodX=x1-periodWidth,rangeX=periodX-rangeWidth-10,modeX=rangeX-modeWidth-10,periodY=controlY;
   if(compactHeader){modeX=x0;rangeX=x1-rangeWidth;periodX=x0;periodY=controlY+30}
-  drawLegend(x0,legendY,compactHeader?x1:modeX-8);drawModeTabs(modeX,controlY);drawRangeTabs(rangeX,controlY);drawPeriodTabs(periodX,periodY);
+  drawLegend(x0,legendY,x1);drawModeTabs(modeX,controlY);drawRangeTabs(rangeX,controlY);drawPeriodTabs(periodX,periodY);
   const startYear=new Date(box.t0).getUTCFullYear(),endYear=new Date(box.t1).getUTCFullYear();
   for(let year=startYear;year<=endYear;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
   if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：UTC+8 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
@@ -870,7 +870,7 @@ function draw(active,eventDate=null){
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);if(priceMode==="candle"){drawCandles("btc");drawCandles("eth")}ctx.restore();
   drawEvents(eventDate);
-  ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("BTC / ETH（起点=1）",0,0);ctx.restore();
+  ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("BTC / ETH（起点=0%）",0,0);ctx.restore();
   ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText("USDT / USDC / ETF累计净流入（$B）",0,0);ctx.restore();
   if(active!=null){const r=rows[active],x=xScale(r.t);ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.62)";ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);series.forEach(item=>{if(priceMode==="candle"&&item.scale==="ratio")return;const v=plotValue(item,r);if(hidden[item.key]||v==null)return;ctx.fillStyle="#fff";ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,yFor(item,v),3.3,0,Math.PI*2);ctx.fill();ctx.stroke()})}
 }
