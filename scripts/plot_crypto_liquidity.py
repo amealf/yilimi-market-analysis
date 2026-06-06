@@ -106,6 +106,13 @@ MARKET_EVENTS = [
         "description": "美国签署GENIUS Act，为支付稳定币提供联邦监管框架，适合观察稳定币进入制度化阶段。",
     },
     {
+        "date": "2025-12-10",
+        "dateLabel": "2025-12-01 / 12-10",
+        "label": "Fed再降息",
+        "type": "降息 / 储备金管理",
+        "description": "Fed将联邦基金目标区间下调至3.50%-3.75%。此前12月1日停止缩表，并通过短债购买维持充足准备金，适合观察美元流动性环境从缩表进入储备金管理阶段。",
+    },
+    {
         "date": "2026-06-05",
         "dateLabel": "2026-06-05",
         "label": "非农超预期",
@@ -113,6 +120,45 @@ MARKET_EVENTS = [
         "description": "BLS公布美国5月非农就业增加17.2万人，失业率维持4.3%；强于预期的数据推升高利率预期，风险资产承压。",
     },
 ]
+
+DATA_EXPLANATION_MD = """# USDT发行量 与 BTC/ETH 数据解释
+
+## 这张图在看什么
+
+这张图主要用来观察加密市场里的几条流动性线索：BTC/ETH价格、稳定币规模、美国现货 BTC ETF累计净流入、美国2年期国债收益率。
+
+## BTC / ETH
+
+BTC和ETH显示在左侧坐标轴，坐标为百分比。`起点=0%` 表示图表样本起点价格归零后计算累计涨跌幅，方便和稳定币、ETF流入放在同一张图里比较节奏。
+
+切到K线后，日、周、月、季会用对应周期的开、高、低、收。悬停窗里仍然显示美元价格和当期涨跌幅。
+
+## USDT发行量、USDC发行量、USDT+USDC
+
+稳定币发行量来自 DefiLlama，单位为十亿美元。USDT+USDC是两者相加，默认显示。
+
+稳定币规模可以当成加密市场链上可用资金的参考。它反映的是市场里稳定币存量的变化，适合观察中长期流动性和资金迁移。
+
+## BTC ETF累计净流入
+
+BTC ETF累计净流入来自 Farside Investors，单位为十亿美元。这里使用美国现货 BTC ETF每日总净流入的累计值，默认显示。
+
+ETF流入反映的是美国现货 ETF渠道的资金买卖压力。它和稳定币对应不同资金池：稳定币偏链上和交易所资金环境，ETF偏传统金融账户进入 BTC 的通道资金。
+
+## 美国2Y利率
+
+美国2年期国债收益率来自 FRED，默认隐藏。它常被用来观察市场对Fed政策利率路径的预期。
+
+2Y利率上行时，风险资产折现压力通常增加；2Y利率下行时，市场通常在定价货币环境放松或增长压力上升。
+
+## 事件标注
+
+底部事件标注用于记录宏观政策、监管变化、稳定币冲击和ETF相关事件。它们用于辅助解释，因果关系仍需要结合价格、资金和利率同时判断。
+
+## 时间口径
+
+价格和事件日期按UTC日线口径处理；页面底部的刷新时间使用UTC+8。
+"""
 
 
 def request_json(url: str, retries: int = 4, pause: float = 1.0) -> object:
@@ -570,6 +616,12 @@ resize();
     output_html.write_text(html_text.replace("__PAYLOAD__", payload), encoding="utf-8")
 
 
+def write_data_explanation(output_html: Path) -> None:
+    explanation_path = output_html.with_name("usdt-speed-indicator-data-explained.md")
+    explanation_path.parent.mkdir(parents=True, exist_ok=True)
+    explanation_path.write_text(DATA_EXPLANATION_MD, encoding="utf-8")
+
+
 def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     meta = chart_meta(data)
     generated_at = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
@@ -632,19 +684,25 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     .home-link svg{width:18px;height:18px;stroke:currentColor}
     canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
     .tip{position:absolute;display:none;pointer-events:none;box-sizing:border-box;min-width:230px;max-width:390px;background:rgba(255,255,255,.10);border:1px solid rgba(120,129,145,.42);border-radius:6px;color:#17202a;padding:9px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(2px);overflow-wrap:anywhere;white-space:normal}
+    .footer-note{position:absolute;left:100px;right:18px;bottom:8px;z-index:2;display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#526071;font-size:11px;line-height:1.35;pointer-events:none}
+    .footer-note a{color:#2563eb;text-decoration:underline;text-underline-offset:2px;pointer-events:auto}
+    .is-embed .footer-note{display:none}
+    @media (max-width:640px){.footer-note{left:92px;right:8px;bottom:8px;font-size:10.5px;gap:8px}}
   </style>
 </head>
 <body>
-<div class="page"><a class="home-link" href="../../index.html" aria-label="返回主页" title="返回主页"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></a><canvas id="chart"></canvas><div class="tip" id="tip"></div></div>
+<div class="page"><a class="home-link" href="../../index.html" aria-label="返回主页" title="返回主页"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></a><canvas id="chart"></canvas><div class="tip" id="tip"></div><div class="footer-note" id="footerNote"></div></div>
 <script>
 const P=__PAYLOAD__;
 const rawRows=P.rows.map(r=>({...r,t:new Date(r.date).getTime()}));
 const canvas=document.getElementById("chart");
 const ctx=canvas.getContext("2d");
 const tip=document.getElementById("tip");
+const footerNote=document.getElementById("footerNote");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",candleUpLine:"rgba(185,185,185,.90)",candleUpFill:"rgba(245,245,245,.90)",candleDownLine:"rgba(85,85,85,.90)",candleDownFill:"rgba(120,120,120,.90)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us2y:"rgba(248,113,113,.82)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",candleUpFill:"rgba(255,255,255,.76)",candleBtcLine:"rgba(31,119,180,.82)",candleBtcDown:"rgba(31,119,180,.40)",candleEthLine:"rgba(165,165,165,.72)",candleEthDown:"rgba(165,165,165,.36)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us2y:"rgba(248,113,113,.82)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+if(footerNote)footerNote.innerHTML=`<span>刷新时间：UTC+8 ${P.generatedAt}</span><span>数据来源：${P.dataSources}</span><a href="usdt-speed-indicator-data-explained.md" target="_blank" rel="noopener">数据解释</a>`;
 const series=[
   {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15},
   {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05},
@@ -780,14 +838,14 @@ function drawModeTabs(x,y){
     ctx.lineWidth=active||hovered?1.35:.9;
     roundRect(left,y,w,h,7);ctx.stroke();
     ctx.strokeStyle=hovered||active?"#17202a":"rgba(71,85,105,.58)";
-    ctx.fillStyle=key==="candle"&&(hovered||active)?"rgba(17,17,17,.70)":"rgba(255,255,255,.88)";
+    ctx.fillStyle=key==="candle"&&(hovered||active)?"rgba(31,119,180,.50)":"rgba(255,255,255,.88)";
     ctx.lineWidth=1.15;
     if(key==="line"){
       ctx.beginPath();ctx.moveTo(left+8,y+16);ctx.lineTo(left+15,y+10);ctx.lineTo(left+21,y+12);ctx.lineTo(left+27,y+6);ctx.stroke();
     }else{
       ctx.beginPath();ctx.moveTo(left+12,y+6);ctx.lineTo(left+12,y+18);ctx.moveTo(left+23,y+5);ctx.lineTo(left+23,y+19);ctx.stroke();
       ctx.fillRect(left+9,y+10,7,6);ctx.strokeRect(left+9,y+10,7,6);
-      ctx.fillStyle=hovered||active?"rgba(17,17,17,.70)":"rgba(255,255,255,.88)";
+      ctx.fillStyle=hovered||active?"rgba(31,119,180,.50)":"rgba(255,255,255,.88)";
       ctx.fillRect(left+20,y+9,7,8);ctx.strokeRect(left+20,y+9,7,8);
     }
   });
@@ -802,13 +860,14 @@ function drawAxes(){
 function drawCandles(key){
   if(hidden[key])return;
   const item={key,candle:key},count=Math.max(visibleRows().length,1),bodyW=Math.max(.8,Math.min(period==="quarter"?16:period==="month"?12:period==="week"?8:5,(box.x1-box.x0)/count*.48));
+  const candleLine=key==="btc"?colors.candleBtcLine:colors.candleEthLine,candleDown=key==="btc"?colors.candleBtcDown:colors.candleEthDown;
   rows.forEach(r=>{
     const o=ratioValue(item,r,"Open"),h=ratioValue(item,r,"High"),l=ratioValue(item,r,"Low"),c=ratioValue(item,r);
     if([o,h,l,c].some(v=>!finite(v)))return;
     const x=xScale(r.t);
     if(x<box.x0-bodyW||x>box.x1+bodyW)return;
     const yO=yRatio(o),yH=yRatio(h),yL=yRatio(l),yC=yRatio(c),top=Math.min(yO,yC),bottom=Math.max(yO,yC),bodyH=Math.max(1,bottom-top);
-    ctx.strokeStyle=c>=o?colors.candleUpLine:colors.candleDownLine;ctx.fillStyle=c>=o?colors.candleUpFill:colors.candleDownFill;ctx.lineWidth=.8;
+    ctx.strokeStyle=candleLine;ctx.fillStyle=c>=o?colors.candleUpFill:candleDown;ctx.lineWidth=.8;
     ctx.beginPath();if(yH<top){ctx.moveTo(x,yH);ctx.lineTo(x,top)}if(yL>top+bodyH){ctx.moveTo(x,top+bodyH);ctx.lineTo(x,yL)}ctx.stroke();
     ctx.fillRect(x-bodyW/2,top,bodyW,bodyH);ctx.strokeRect(x-bodyW/2,top,bodyW,bodyH);
   });
@@ -865,7 +924,6 @@ function draw(active,eventDate=null){
   drawLegend(x0,legendY,x1);drawModeTabs(modeX,controlY);drawRangeTabs(rangeX,controlY);drawPeriodTabs(periodX,periodY);
   const startYear=new Date(box.t0).getUTCFullYear(),endYear=new Date(box.t1).getUTCFullYear();
   for(let year=startYear;year<=endYear;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
-  if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：UTC+8 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);if(priceMode==="candle"){drawCandles("btc");drawCandles("eth")}ctx.restore();
@@ -883,6 +941,15 @@ function hitEvent(p){return eventBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&
 function nearest(mx){const t=timeAtX(mx);let l=0,r=rows.length-1;while(l<r){const m=(l+r)>>1;if(rows[m].t<t)l=m+1;else r=m}if(l>0&&Math.abs(rows[l-1].t-t)<Math.abs(rows[l].t-t))l--;return l}
 function drawSelection(){if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1),left=Math.min(x0,x1),width=Math.abs(x1-x0);if(width<3)return;ctx.fillStyle="rgba(111,74,168,.10)";ctx.strokeStyle="rgba(111,74,168,.55)";ctx.lineWidth=1;ctx.fillRect(left,box.y0,width,box.y1-box.y0);ctx.strokeRect(left,box.y0,width,box.y1-box.y0)}
 function clearTip(){hoverKey="";pendingPoint=null;tip.style.display="none"}
+function positionTip(p,shiftY=70){
+  const margin=8,gap=14,w=tip.offsetWidth||280,h=tip.offsetHeight||150,rightLimit=Math.min(p.rect.width-margin,box.x1?box.x1-8:p.rect.width-margin);
+  let left=p.x+gap;
+  if(left+w>rightLimit)left=p.x-w-gap;
+  left=Math.max(margin,Math.min(left,Math.max(margin,rightLimit-w)));
+  let top=p.y-shiftY;
+  top=Math.max(margin,Math.min(top,Math.max(margin,p.rect.height-margin-h)));
+  tip.style.left=left+"px";tip.style.top=top+"px";
+}
 function showTipNow(p){
   if(!inPlot(p)){if(hoverKey!=="out"){tip.style.display="none";draw();hoverKey="out"}return}
   const eventHit=hitEvent(p);
@@ -895,7 +962,7 @@ function showTipNow(p){
       tip.innerHTML=`<b>${e.label}</b><br>时间：${e.dateLabel}<br>类型：${e.type}<br>${e.description}`;
       hoverKey=key;
     }
-    tip.style.display="block";tip.style.left=Math.min(p.rect.width-310,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-190,p.y-92))+"px";
+    tip.style.display="block";positionTip(p,92);
     return;
   }
   const i=nearest(p.x),r=rows[i],key=`point:${period}:${i}`;
@@ -906,7 +973,7 @@ function showTipNow(p){
     tip.innerHTML=`<b>${periodTitle(r)}</b><br>${lines.join("<br>")}`;
     hoverKey=key;
   }
-  tip.style.display="block";tip.style.left=Math.min(p.rect.width-250,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
+  tip.style.display="block";positionTip(p,70);
 }
 function showTip(p){pendingPoint=p;if(hoverFrame)return;hoverFrame=true;requestAnimationFrame(()=>{hoverFrame=false;const next=pendingPoint;pendingPoint=null;if(next)showTipNow(next)})}
 canvas.addEventListener("click",e=>{const p=pointer(e),mode=hitMode(p),range=hitRange(p),tab=hitPeriod(p);if(mode){priceMode=mode.key;hoverMode=mode.key;clearTip();draw();return}if(range){rangeMode=range.key;hoverRange=range.key;zoom=null;clearTip();draw();return}if(tab){period=tab.key;hoverPeriod=tab.key;zoom=null;clearTip();draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];clearTip();draw()});
@@ -923,4 +990,5 @@ resize();
 </html>
 """
     html_text = add_canvas_mobile_support(html_text)
+    write_data_explanation(output_html)
     output_html.write_text(html_text.replace("__PAYLOAD__", payload), encoding="utf-8")
