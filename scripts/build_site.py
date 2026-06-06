@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import html
 import importlib
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -155,6 +156,19 @@ def build_oil_price_events(chart: dict) -> dict:
     return module.chart_meta(data)
 
 
+def build_static_html(chart: dict) -> dict:
+    html_path = site_path(chart["output_html"])
+    csv_path = site_path(chart["output_csv"])
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+    shutil.copy2(ROOT / chart["source_html"], html_path)
+    shutil.copy2(ROOT / chart["source_csv"], csv_path)
+    return {
+        "metrics": chart.get("metrics", []),
+    }
+
+
 def build_global_30y_bond_intraday(chart: dict) -> dict:
     sys.path.insert(0, str(ROOT))
     module = importlib.import_module(chart["module"])
@@ -192,6 +206,7 @@ BUILDERS = {
     "usdt_speed_indicator": build_usdt_speed_indicator,
     "korea_margin_kospi": build_korea_margin_kospi,
     "oil_price_events": build_oil_price_events,
+    "static_html": build_static_html,
     "global_30y_bond_intraday": build_global_30y_bond_intraday,
     "global_30y_bond_daily": build_global_30y_bond_daily,
 }

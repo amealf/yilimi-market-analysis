@@ -41,6 +41,20 @@ charts:
     module: plot_korea_margin_kospi
     output_html: charts/other-markets/korea-margin-kospi.html
     output_csv: data/other-markets/korea-margin-kospi.csv
+  - id: hsi-net-flow
+    category: other-markets
+    title: HSI K线与累计净买入
+    description: HSI K线、累计净买入、BSA净买入、连续单净买入、大单净买入和总买卖量。
+    builder: static_html
+    source_html: static/other-markets/hsi-net-flow.html
+    source_csv: static/other-markets/hsi-net-flow.csv
+    output_html: charts/other-markets/hsi-net-flow.html
+    output_csv: data/other-markets/hsi-net-flow.csv
+    metrics:
+      - label: 市场
+        value: HSI
+      - label: 默认周期
+        value: 周线
   - id: oil-price-events
     category: other-markets
     title: Brent 原油价格与事件
