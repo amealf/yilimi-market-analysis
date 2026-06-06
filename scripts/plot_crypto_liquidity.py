@@ -23,6 +23,7 @@ from mobile_chart_support import add_canvas_mobile_support
 START_DATE = date(2015, 8, 7)
 END_DATE = date.today()
 DISPLAY_START = pd.Timestamp("2018-09-01")
+MAX_CACHE_STALENESS_DAYS = 3
 PRICE_SOURCE = "https://min-api.cryptocompare.com/data/v2/histoday"
 STABLECOIN_SOURCE = "https://stablecoins.llama.fi/stablecoincharts/all"
 FRED_CSV_SOURCE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
@@ -600,9 +601,14 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
         bnb = fetch_price("BNB", "BNB", START_DATE, END_DATE)
         usdt = fetch_stablecoin_supply(1, "USDT", START_DATE, END_DATE)
         usdc = fetch_stablecoin_supply(2, "USDC", START_DATE, END_DATE)
-    except Exception:
+    except Exception as exc:
         if cache_path and cache_path.exists():
             cached = pd.read_csv(cache_path, parse_dates=["date"])
+            latest_cache_date = cached["date"].max().date()
+            if (END_DATE - latest_cache_date).days > MAX_CACHE_STALENESS_DAYS:
+                raise RuntimeError(
+                    f"Cached crypto liquidity data is stale: latest {latest_cache_date}, expected near {END_DATE}"
+                ) from exc
             if "stable_b" not in cached.columns:
                 cached["stable_b"] = cached[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
             normalize_optional_macro_columns(cached)
