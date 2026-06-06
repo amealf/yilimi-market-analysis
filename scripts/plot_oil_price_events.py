@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from global_30y_bond_daily.providers.tradingview_provider import fetch as fetch_tradingview
+from mobile_chart_support import add_canvas_mobile_support
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -496,4 +497,5 @@ resize();
 </html>
 """
     output_html.parent.mkdir(parents=True, exist_ok=True)
+    html_text = add_canvas_mobile_support(html_text)
     output_html.write_text(html_text.replace("__PAYLOAD__", payload), encoding="utf-8")

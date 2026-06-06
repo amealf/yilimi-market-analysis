@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib import font_manager
 
+from mobile_chart_support import add_canvas_mobile_support
+
 
 START_DATE = "2014-01-01"
 EASTMONEY_DATA_CENTER = "https://datacenter-web.eastmoney.com/api/data/v1/get"
@@ -421,6 +423,7 @@ const P=__PAYLOAD__;const rows=P.data.map(d=>({t:new Date(d[0]).getTime(),date:d
 """
     html = html.replace("__PAYLOAD__", payload)
     html = "".join(line.strip() for line in html.splitlines())
+    html = add_canvas_mobile_support(html)
     output_html.write_text(html, encoding="utf-8")
 
 
@@ -514,6 +517,7 @@ draw();
     html = html.replace('<div class="page">', '<div class="page">' + home_link, 1)
     html = html.replace("__PAYLOAD__", payload)
     html = "".join(line.strip() for line in html.splitlines())
+    html = add_canvas_mobile_support(html)
     output_html.write_text(html, encoding="utf-8")
 
 

@@ -16,6 +16,8 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from mobile_chart_support import add_canvas_mobile_support
+
 
 START_DATE = "2014-01-01"
 KOFIA_DATA = "https://freesis.kofia.or.kr/meta/getMetaDataList.do"
@@ -514,6 +516,7 @@ canvas.addEventListener("mousemove",e=>{
     html = html.replace("</script></body></html>", "</script>" + weekday_tooltip_patch + "</body></html>")
     html = html.replace("__PAYLOAD__", payload)
     html = "".join(line.strip() for line in html.splitlines())
+    html = add_canvas_mobile_support(html)
     output_html.write_text(html, encoding="utf-8")
 
 

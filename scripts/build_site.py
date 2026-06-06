@@ -325,19 +325,40 @@ def render_page(title: str, body: str) -> str:
     .button {{
       display: inline-flex;
       align-items: center;
+      justify-content: center;
+      min-height: 38px;
       padding: 8px 11px;
       border: 1px solid #cbd5e1;
       border-radius: 6px;
       background: #f8fafc;
       font-size: 14px;
+      box-sizing: border-box;
     }}
     .button:hover {{ background: #eef2f7; }}
     footer {{ margin-top: 32px; color: #64748b; font-size: 12px; }}
     @media (max-width: 960px) {{
+      .shell {{ padding: 18px 16px 28px; }}
       .top {{ grid-template-columns: 1fr; }}
       .grid {{ grid-template-columns: 1fr; }}
       .home-top {{ padding: 24px 0 24px; }}
       .home-top h1 {{ font-size: 34px; }}
+      .chart-preview {{ aspect-ratio: 4 / 3; }}
+    }}
+    @media (max-width: 560px) {{
+      .shell {{ padding: 12px 10px 22px; }}
+      .top {{ gap: 12px; padding: 12px 0 14px; }}
+      h1 {{ font-size: 24px; line-height: 1.22; }}
+      .home-top {{ padding: 18px 0 18px; }}
+      .home-top h1 {{ font-size: 28px; line-height: 1.12; }}
+      .home-top .muted {{ font-size: 13px; line-height: 1.55; }}
+      h2 {{ margin: 18px 0 10px; font-size: 17px; }}
+      .grid {{ gap: 12px; }}
+      .card {{ padding: 10px; }}
+      .card h3 {{ font-size: 16px; }}
+      .chart-preview {{ aspect-ratio: 1 / 1; }}
+      .actions {{ gap: 8px; }}
+      .button {{ flex: 1 1 130px; min-height: 40px; padding: 8px 10px; font-size: 13px; }}
+      .meta {{ grid-template-columns: 1fr; }}
     }}
   </style>
 </head>

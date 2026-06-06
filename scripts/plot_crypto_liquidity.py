@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import html
 import re
 import subprocess
 import time
@@ -27,10 +28,12 @@ STABLECOIN_SOURCE = "https://stablecoins.llama.fi/stablecoincharts/all"
 FRED_CSV_SOURCE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 FRED_DGS2_FALLBACK_CSV_SOURCE = "https://eco3min.fr/dataset/us-2y-treasury-yield.csv"
 FARSIDE_BTC_ETF_FLOW_SOURCE = "https://r.jina.ai/http://r.jina.ai/http://https://farside.co.uk/bitcoin-etf-flow-all-data/"
+PRICE_SYMBOLS = ["BTC", "ETH", "SOL", "BNB"]
 MARKET_EVENTS = [
     {
         "date": "2020-03-15",
         "dateLabel": "2020-03-12 / 03-15",
+        "timezone": "UTC-4（美国东部夏令时间）",
         "label": "COVID / Fed QE",
         "type": "美元流动性扩张起点",
         "description": "3月12日全球风险资产去杠杆，BTC大幅下跌；3月15日Fed将联邦基金目标区间降至0-0.25%，并宣布购买美债和MBS，成为后续风险资产与稳定币扩张的宏观起点。",
@@ -38,6 +41,7 @@ MARKET_EVENTS = [
     {
         "date": "2021-09-24",
         "dateLabel": "2021-09-24",
+        "timezone": "UTC+8（中国标准时间）",
         "label": "中国禁令",
         "type": "监管冲击",
         "description": "中国监管机构强化对加密交易和挖矿的限制，PBOC称加密货币不得流通，境外交易所也不得向中国境内投资者提供服务。",
@@ -45,6 +49,7 @@ MARKET_EVENTS = [
     {
         "date": "2021-11-03",
         "dateLabel": "2021-11-03",
+        "timezone": "UTC-4（美国东部夏令时间）",
         "label": "Fed Taper",
         "type": "流动性转折",
         "description": "Fed宣布开始降低资产购买速度，COVID流动性扩张由高峰转向边际收敛。",
@@ -52,6 +57,7 @@ MARKET_EVENTS = [
     {
         "date": "2022-03-16",
         "dateLabel": "2022-03-16",
+        "timezone": "UTC-4（美国东部夏令时间）",
         "label": "Fed加息周期",
         "type": "美元收缩",
         "description": "Fed将目标利率区间上调至0.25%-0.50%，本轮加息周期开始，并表示后续还会继续加息，同时预告缩表。",
@@ -59,6 +65,7 @@ MARKET_EVENTS = [
     {
         "date": "2022-05-11",
         "dateLabel": "2022-05-10 / 05-11",
+        "timezone": "UTC+0（加密市场日线）",
         "label": "UST脱锚",
         "type": "稳定币信用冲击",
         "description": "TerraUSD脱离1美元锚定并冲击加密市场，适合观察2022年稳定币信任危机和USDT发行量回落。",
@@ -66,6 +73,7 @@ MARKET_EVENTS = [
     {
         "date": "2022-06-01",
         "dateLabel": "2022-06-01",
+        "timezone": "UTC-4（美国东部夏令时间）",
         "label": "QT开始",
         "type": "美元收缩",
         "description": "Fed缩表计划开始执行，美债和MBS到期不再再投资的月度上限逐步提高，美元流动性压力继续上升。",
@@ -73,6 +81,7 @@ MARKET_EVENTS = [
     {
         "date": "2023-03-12",
         "dateLabel": "2023-03-10 / 03-12",
+        "timezone": "UTC-5/UTC-4（美国东部时间）",
         "label": "SVB / USDC",
         "type": "稳定币份额迁移",
         "description": "SVB进入接管后，Circle披露有33亿美元USDC储备在SVB，随后USDC出现赎回压力和脱锚，市场出现从USDC向USDT迁移的需求。",
@@ -80,6 +89,7 @@ MARKET_EVENTS = [
     {
         "date": "2024-01-10",
         "dateLabel": "2024-01-10",
+        "timezone": "UTC-5（美国东部标准时间）",
         "label": "BTC ETF通过",
         "type": "监管/机构采用",
         "description": "SEC批准多个现货比特币ETP上市交易，这是2024年BTC强势的重要制度事件。",
@@ -87,6 +97,7 @@ MARKET_EVENTS = [
     {
         "date": "2024-06-01",
         "dateLabel": "2024-06-01",
+        "timezone": "UTC-4（美国东部夏令时间）",
         "label": "QT降速",
         "type": "流动性压力缓和",
         "description": "Fed将美债缩表月度上限从600亿美元降至250亿美元，美元流动性压力边际放缓。",
@@ -94,6 +105,7 @@ MARKET_EVENTS = [
     {
         "date": "2024-09-18",
         "dateLabel": "2024-09-18",
+        "timezone": "UTC-4（美国东部夏令时间）",
         "label": "Fed降息",
         "type": "流动性宽松信号",
         "description": "Fed将目标区间下调50bp至4.75%-5.00%，成为2024年后半段风险资产定价的重要转折。",
@@ -101,6 +113,7 @@ MARKET_EVENTS = [
     {
         "date": "2025-07-18",
         "dateLabel": "2025-07-18",
+        "timezone": "UTC-4（美国东部夏令时间）",
         "label": "GENIUS法案",
         "type": "美国稳定币法案",
         "description": "美国签署GENIUS Act，为支付稳定币提供联邦监管框架，适合观察稳定币进入制度化阶段。",
@@ -108,6 +121,7 @@ MARKET_EVENTS = [
     {
         "date": "2025-12-10",
         "dateLabel": "2025-12-01 / 12-10",
+        "timezone": "UTC-5（美国东部标准时间）",
         "label": "Fed再降息",
         "type": "降息 / 储备金管理",
         "description": "Fed将联邦基金目标区间下调至3.50%-3.75%。此前12月1日停止缩表，并通过短债购买维持充足准备金，适合观察美元流动性环境从缩表进入储备金管理阶段。",
@@ -115,6 +129,7 @@ MARKET_EVENTS = [
     {
         "date": "2026-06-05",
         "dateLabel": "2026-06-05",
+        "timezone": "UTC-4（美国东部夏令时间）",
         "label": "非农超预期",
         "type": "利率预期冲击",
         "description": "BLS公布美国5月非农就业增加17.2万人，失业率维持4.3%；强于预期的数据推升高利率预期，风险资产承压。",
@@ -125,13 +140,17 @@ DATA_EXPLANATION_MD = """# USDT发行量 与 BTC/ETH 数据解释
 
 ## 这张图在看什么
 
-这张图主要用来观察加密市场里的几条流动性线索：BTC/ETH价格、稳定币规模、美国现货 BTC ETF累计净流入、美国2年期国债收益率。
+这张图主要用来观察加密市场里的几条流动性线索：BTC/ETH/SOL/BNB价格、BTC/ETH比值、稳定币规模、美国现货 BTC ETF累计净流入、美国2年期国债收益率。
 
-## BTC / ETH
+## BTC / ETH / SOL / BNB
 
-BTC和ETH显示在左侧坐标轴，坐标为百分比。`起点=0%` 表示图表样本起点价格归零后计算累计涨跌幅，方便和稳定币、ETF流入放在同一张图里比较节奏。
+BTC和ETH默认显示。SOL和BNB默认隐藏，可以点击图例开启。左侧坐标轴为百分比，`起点=0%` 表示图表样本起点价格归零后计算累计涨跌幅，方便和稳定币、ETF流入放在同一张图里比较节奏。
 
 切到K线后，日、周、月、季会用对应周期的开、高、低、收。悬停窗里仍然显示美元价格和当期涨跌幅。
+
+## BTC/ETH比值
+
+BTC/ETH比值默认隐藏，可以点击图例开启。比值使用 `BTC价格 / ETH价格` 计算，图上显示的是该比值相对样本起点的累计变化，悬停窗显示实际比值和当期变化。
 
 ## USDT发行量、USDC发行量、USDT+USDC
 
@@ -153,11 +172,11 @@ ETF流入反映的是美国现货 ETF渠道的资金买卖压力。它和稳定�
 
 ## 事件标注
 
-底部事件标注用于记录宏观政策、监管变化、稳定币冲击和ETF相关事件。它们用于辅助解释，因果关系仍需要结合价格、资金和利率同时判断。
+底部事件标注用于记录宏观政策、监管变化、稳定币冲击和ETF相关事件。悬停窗会显示事件日期对应的地区时区，例如2026-06-05非农使用UTC-4（美国东部夏令时间）。事件用于辅助解释，因果关系仍需要结合价格、资金和利率同时判断。
 
 ## 时间口径
 
-价格和事件日期按UTC日线口径处理；页面底部的刷新时间使用UTC+8。
+价格按UTC日线口径处理；事件标注保留事件地区时区；页面底部的刷新时间使用UTC+8。
 """
 
 
@@ -368,16 +387,27 @@ def normalize_btc_etf_flow_column(data: pd.DataFrame) -> None:
     data["btc_etf_flow"] = pd.to_numeric(data["btc_etf_flow"], errors="coerce").ffill()
 
 
-def normalize_price_ohlc_columns(data: pd.DataFrame) -> None:
-    for symbol in ["BTC", "ETH"]:
+def normalize_price_columns(data: pd.DataFrame) -> None:
+    for symbol in PRICE_SYMBOLS:
         if symbol not in data.columns:
-            continue
+            data[symbol] = pd.NA
+        data[symbol] = pd.to_numeric(data[symbol], errors="coerce").ffill()
+
+
+def normalize_price_ohlc_columns(data: pd.DataFrame) -> None:
+    for symbol in PRICE_SYMBOLS:
         close = pd.to_numeric(data[symbol], errors="coerce")
         for suffix in ["open", "high", "low"]:
             column = f"{symbol}_{suffix}"
             if column not in data.columns:
                 data[column] = close
             data[column] = pd.to_numeric(data[column], errors="coerce").ffill()
+
+
+def add_btc_eth_ratio(data: pd.DataFrame) -> None:
+    btc = pd.to_numeric(data["BTC"], errors="coerce")
+    eth = pd.to_numeric(data["ETH"], errors="coerce")
+    data["btc_eth_ratio"] = btc.where((btc > 0) & (eth > 0)) / eth.where((btc > 0) & (eth > 0))
 
 
 def fetch_optional_macro_series() -> dict[str, pd.Series | None]:
@@ -437,6 +467,8 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
     try:
         btc = fetch_price("BTC", "BTC", START_DATE, END_DATE)
         eth = fetch_price("ETH", "ETH", START_DATE, END_DATE)
+        sol = fetch_price("SOL", "SOL", START_DATE, END_DATE)
+        bnb = fetch_price("BNB", "BNB", START_DATE, END_DATE)
         usdt = fetch_stablecoin_supply(1, "USDT", START_DATE, END_DATE)
         usdc = fetch_stablecoin_supply(2, "USDC", START_DATE, END_DATE)
     except Exception:
@@ -446,7 +478,9 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
                 cached["stable_b"] = cached[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
             normalize_optional_macro_columns(cached)
             normalize_btc_etf_flow_column(cached)
+            normalize_price_columns(cached)
             normalize_price_ohlc_columns(cached)
+            add_btc_eth_ratio(cached)
             add_usdt_indicators(cached)
             return cached.drop(columns=["dxy", "us_rate"], errors="ignore")
         raise
@@ -455,7 +489,7 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
     btc_etf_flow = fetch_optional_btc_etf_flow()
     index = pd.date_range(START_DATE, END_DATE, freq="D")
     data = pd.DataFrame(index=index)
-    data = data.join(btc).join(eth).join(usdt).join(usdc)
+    data = data.join(btc).join(eth).join(sol).join(bnb).join(usdt).join(usdc)
     for macro in macro_series.values():
         if macro is not None:
             data = data.join(macro)
@@ -464,9 +498,13 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
     normalize_optional_macro_columns(data)
     normalize_btc_etf_flow_column(data)
     data = data.drop(columns=["dxy", "us_rate"], errors="ignore")
-    for column in ["BTC", "ETH", "USDT", "USDC"]:
+    for column in [*PRICE_SYMBOLS, "USDT", "USDC"]:
+        if column not in data.columns:
+            data[column] = pd.NA
         data[column] = data[column].ffill()
+    normalize_price_columns(data)
     normalize_price_ohlc_columns(data)
+    add_btc_eth_ratio(data)
 
     data["usdt_b"] = data["USDT"] / 1e9
     data["usdc_b"] = data["USDC"] / 1e9
@@ -500,13 +538,15 @@ def chart_meta(data: pd.DataFrame) -> dict:
     usdc_start = first_valid_date(data, "USDC")
     btc_start = first_valid_date(data, "BTC")
     eth_start = first_valid_date(data, "ETH")
+    sol_start = first_valid_date(data, "SOL")
+    bnb_start = first_valid_date(data, "BNB")
     return {
         "latestDate": str(max(latest_btc["date"], latest_usdt["date"]).date()),
         "btc": round(float(latest_btc["BTC"]), 2),
         "eth": round(float(latest_eth["ETH"]), 2),
         "usdt": round(float(latest_usdt["USDT"]) / 1e9, 2),
         "usdc": round(float(latest_usdc["USDC"]) / 1e9, 2),
-        "dataNote": f"BTC/ETH 行情从 {btc_start}/{eth_start} 开始；USDT/USDC 发行量从 {usdt_start}/{usdc_start} 开始。",
+        "dataNote": f"BTC/ETH/SOL/BNB 行情从 {btc_start}/{eth_start}/{sol_start}/{bnb_start} 开始；USDT/USDC 发行量从 {usdt_start}/{usdc_start} 开始。",
         "metrics": [
             {"label": "BTC", "value": f"${float(latest_btc['BTC']):,.0f}", "date": str(latest_btc["date"].date())},
             {"label": "ETH", "value": f"${float(latest_eth['ETH']):,.0f}", "date": str(latest_eth["date"].date())},
@@ -616,10 +656,76 @@ resize();
     output_html.write_text(html_text.replace("__PAYLOAD__", payload), encoding="utf-8")
 
 
+def inline_markdown(text: str) -> str:
+    escaped = html.escape(text)
+    return re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
+
+
+def render_markdown_document(markdown_text: str) -> str:
+    blocks: list[str] = []
+    paragraph: list[str] = []
+
+    def flush_paragraph() -> None:
+        if paragraph:
+            blocks.append(f"<p>{inline_markdown(' '.join(paragraph))}</p>")
+            paragraph.clear()
+
+    for raw_line in markdown_text.strip().splitlines():
+        line = raw_line.strip()
+        if not line:
+            flush_paragraph()
+            continue
+        match = re.match(r"^(#{1,3})\s+(.+)$", line)
+        if match:
+            flush_paragraph()
+            level = len(match.group(1))
+            blocks.append(f"<h{level}>{inline_markdown(match.group(2))}</h{level}>")
+            continue
+        paragraph.append(line)
+    flush_paragraph()
+    return "\n".join(blocks)
+
+
+def render_data_explanation_html(markdown_text: str) -> str:
+    body = render_markdown_document(markdown_text)
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>USDT发行量 与 BTC/ETH 数据解释</title>
+  <style>
+    body{{margin:0;background:#eef3f7;color:#17202a;font-family:"Microsoft YaHei",Arial,sans-serif;line-height:1.7}}
+    main{{max-width:860px;margin:0 auto;padding:34px 18px 48px}}
+    article{{background:#fff;border:1px solid #d7e0e8;border-radius:8px;padding:24px 28px;box-shadow:0 12px 30px rgba(15,23,42,.07)}}
+    h1{{margin:0 0 16px;font-size:24px;line-height:1.3}}
+    h2{{margin:22px 0 8px;font-size:17px;line-height:1.4}}
+    h3{{margin:20px 0 8px;font-size:15px;line-height:1.4}}
+    p{{margin:0 0 12px;color:#344054;font-size:14px}}
+    code{{padding:2px 5px;border-radius:4px;background:#f1f5f9;color:#0f172a;font-family:Consolas,monospace;font-size:.92em}}
+    a{{color:#2563eb;text-decoration:underline;text-underline-offset:2px}}
+    .back{{display:inline-flex;margin-bottom:12px;color:#2563eb;font-size:13px}}
+    @media (max-width:640px){{main{{padding:18px 10px 32px}}article{{padding:18px 16px}}h1{{font-size:22px}}h2{{font-size:16px}}p{{font-size:13px}}}}
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="usdt-speed-indicator.html">返回图表</a>
+    <article>
+      {body}
+    </article>
+  </main>
+</body>
+</html>
+"""
+
+
 def write_data_explanation(output_html: Path) -> None:
-    explanation_path = output_html.with_name("usdt-speed-indicator-data-explained.md")
-    explanation_path.parent.mkdir(parents=True, exist_ok=True)
-    explanation_path.write_text(DATA_EXPLANATION_MD, encoding="utf-8")
+    markdown_path = output_html.with_name("usdt-speed-indicator-data-explained.md")
+    html_path = output_html.with_name("usdt-speed-indicator-data-explained.html")
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    markdown_path.write_text(DATA_EXPLANATION_MD, encoding="utf-8")
+    html_path.write_text(render_data_explanation_html(DATA_EXPLANATION_MD), encoding="utf-8")
 
 
 def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
@@ -627,7 +733,9 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
     generated_at = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d %H:%M:%S")
     data = data.copy()
     normalize_btc_etf_flow_column(data)
+    normalize_price_columns(data)
     normalize_price_ohlc_columns(data)
+    add_btc_eth_ratio(data)
     data["btc_daily_pct"] = data["BTC"].pct_change() * 100
     data["eth_daily_pct"] = data["ETH"].pct_change() * 100
     display_data = data.loc[data["date"] >= DISPLAY_START]
@@ -644,6 +752,9 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
                 "ethOpen": series_value(row.ETH_open, 2),
                 "ethHigh": series_value(row.ETH_high, 2),
                 "ethLow": series_value(row.ETH_low, 2),
+                "sol": series_value(row.SOL, 2),
+                "bnb": series_value(row.BNB, 2),
+                "btcEthRatio": series_value(row.btc_eth_ratio, 4),
                 "btcDaily": series_value(row.btc_daily_pct, 2),
                 "ethDaily": series_value(row.eth_daily_pct, 2),
                 "usdt": series_value(row.usdt_b, 4),
@@ -701,11 +812,14 @@ const tip=document.getElementById("tip");
 const footerNote=document.getElementById("footerNote");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",candleUpFill:"rgba(255,255,255,.76)",candleBtcLine:"rgba(31,119,180,.82)",candleBtcDown:"rgba(31,119,180,.40)",candleEthLine:"rgba(165,165,165,.72)",candleEthDown:"rgba(165,165,165,.36)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us2y:"rgba(248,113,113,.82)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
-if(footerNote)footerNote.innerHTML=`<span>刷新时间：UTC+8 ${P.generatedAt}</span><span>数据来源：${P.dataSources}</span><a href="usdt-speed-indicator-data-explained.md" target="_blank" rel="noopener">数据解释</a>`;
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleBtcLine:"rgba(31,119,180,.82)",candleBtcDown:"rgba(31,119,180,.40)",candleEthLine:"rgba(165,165,165,.72)",candleEthDown:"rgba(165,165,165,.36)",usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us2y:"rgba(248,113,113,.82)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+if(footerNote)footerNote.innerHTML=`<span>刷新时间：UTC+8 ${P.generatedAt}</span><span>数据来源：${P.dataSources}</span><a href="usdt-speed-indicator-data-explained.html" target="_blank" rel="noopener">数据解释</a>`;
 const series=[
-  {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15},
-  {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05},
+  {key:"btc",label:"BTC",color:colors.btc,scale:"ratio",width:1.15,kind:"candle"},
+  {key:"eth",label:"ETH",color:colors.eth,scale:"ratio",width:1.05,kind:"candle"},
+  {key:"sol",label:"SOL",color:colors.sol,scale:"ratio",width:1.0,dash:[4,3]},
+  {key:"bnb",label:"BNB",color:colors.bnb,scale:"ratio",width:1.0,dash:[7,4]},
+  {key:"btcEthRatio",label:"BTC/ETH比值",color:colors.btcEthRatio,scale:"ratio",width:1.0,dash:[2,3],format:"number"},
   {key:"usdt",label:"USDT发行量",color:colors.usdt,scale:"supply",width:1.15},
   {key:"usdc",label:"USDC发行量",color:colors.usdc,scale:"supply",width:1.15},
   {key:"stable",label:"USDT+USDC",color:colors.stable,scale:"supply",width:1.1},
@@ -713,7 +827,7 @@ const series=[
   {key:"us2y",label:"美国2Y利率",color:colors.us2y,scale:"rate",width:1.1}
 ];
 const periodNames={day:"日",week:"周",month:"月",quarter:"季"};
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],rangeBoxes=[],modeBoxes=[],period="day",priceMode="line",rangeMode="all",hoverPeriod=null,hoverRange=null,hoverMode=null,hidden={usdt:true,usdc:true,us2y:true};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],rangeBoxes=[],modeBoxes=[],period="day",priceMode="line",rangeMode="all",hoverPeriod=null,hoverRange=null,hoverMode=null,hidden={sol:true,bnb:true,btcEthRatio:true,usdt:true,usdc:true,us2y:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function finite(v){return v!=null&&Number.isFinite(v)}
@@ -722,6 +836,8 @@ function periodTitle(r){return period==="day"?dayLabel(r.date):period==="quarter
 function weekKey(t){const d=new Date(t),day=d.getUTCDay(),diff=(day+6)%7,s=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()-diff));return s.toISOString().slice(0,10)}
 function monthKey(t){const d=new Date(t);return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`}
 function quarterKey(t){const d=new Date(t);return `${d.getUTCFullYear()}-Q${Math.floor(d.getUTCMonth()/3)+1}`}
+function dailyKey(key){return `${key}Daily`}
+function addPeriodChanges(list){const ratioKeys=series.filter(item=>item.scale==="ratio").map(item=>item.key);return list.map((r,i,a)=>{const next={...r};ratioKeys.forEach(key=>{next[dailyKey(key)]=i&&a[i-1][key]&&r[key]!=null?(r[key]/a[i-1][key]-1)*100:null});return next})}
 function groupOhlc(group,last,key){
   const openKey=`${key}Open`,highKey=`${key}High`,lowKey=`${key}Low`;
   const openRow=group.find(r=>finite(r[openKey]));
@@ -731,17 +847,17 @@ function groupOhlc(group,last,key){
   last[lowKey]=lows.length?Math.min(...lows):last[key];
 }
 function groupedRows(mode){
-  if(mode==="day")return rawRows.map(cloneRow);
+  if(mode==="day")return addPeriodChanges(rawRows.map(cloneRow));
   const groups=new Map(),keyFn=mode==="week"?weekKey:mode==="month"?monthKey:quarterKey;
   rawRows.forEach(r=>{const key=keyFn(r.t);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(r)});
-  return Array.from(groups.values()).map(group=>{
+  return addPeriodChanges(Array.from(groups.values()).map(group=>{
     const last=cloneRow(group[group.length-1]);
     groupOhlc(group,last,"btc");groupOhlc(group,last,"eth");
     return last;
-  }).sort((a,b)=>a.t-b.t).map((r,i,a)=>({...r,btcDaily:i&&a[i-1].btc&&r.btc!=null?(r.btc/a[i-1].btc-1)*100:null,ethDaily:i&&a[i-1].eth&&r.eth!=null?(r.eth/a[i-1].eth-1)*100:null}));
+  }).sort((a,b)=>a.t-b.t));
 }
 let rows=groupedRows(period),ratioBase={},rowsPeriod=null,hoverKey="",pendingPoint=null,hoverFrame=false;
-function refreshRows(){if(rowsPeriod===period)return;rows=groupedRows(period);ratioBase={btc:rows.find(r=>r.btc!=null)?.btc,eth:rows.find(r=>r.eth!=null)?.eth};rowsPeriod=period}
+function refreshRows(){if(rowsPeriod===period)return;rows=groupedRows(period);ratioBase=Object.fromEntries(series.filter(item=>item.scale==="ratio").map(item=>[item.key,rows.find(r=>r[item.key]!=null)?.[item.key]]));rowsPeriod=period}
 function displayEnd(){return rows[rows.length-1].t+DAY*120}
 function usd(v,d=0){return v==null?"-":"$"+Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})}
 function b(v){return v==null?"-":Number(v).toFixed(2)+"B"}
@@ -754,8 +870,8 @@ function axisPct(v){if(v==null)return "-";const n=Math.round(Number(v));return n
 function ratioValue(item,r,suffix=""){const key=item.candle||item.key,base=ratioBase[key],source=suffix?`${key}${suffix}`:key;return base&&r[source]!=null?(r[source]/base-1)*100:null}
 function plotValue(item,r){const v=item.scale==="ratio"?ratioValue(item,r):r[item.key];return v!=null&&item.valueDivisor?v/item.valueDivisor:v}
 function ohlcText(item,r){const key=item.candle;return `开 ${usd(r[`${key}Open`])} / 高 ${usd(r[`${key}High`])} / 低 ${usd(r[`${key}Low`])} / 收 ${usd(r[key])}`}
-function valueText(item,r){if(item.scale==="ratio"){const daily=item.key==="btc"?r.btcDaily:r.ethDaily;if(r[item.key]==null)return "-";return priceMode==="candle"?`${ohlcText({candle:item.key},r)}（${signedPct(daily)}）`:usd(r[item.key])+"（"+signedPct(daily)+"）"}if(item.key==="btcEtfFlow")return flowValue(r[item.key]);if(item.scale==="rate")return ratePct(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
-function extentValues(item,r){return item.scale==="ratio"&&priceMode==="candle"?["Open","High","Low",""].map(s=>ratioValue(item,r,s)):[plotValue(item,r)]}
+function valueText(item,r){if(item.scale==="ratio"){const daily=r[dailyKey(item.key)];if(r[item.key]==null)return "-";if(item.kind==="candle"&&priceMode==="candle")return `${ohlcText({candle:item.key},r)}（${signedPct(daily)}）`;if(item.format==="number")return Number(r[item.key]).toFixed(2)+"（"+signedPct(daily)+"）";return usd(r[item.key])+"（"+signedPct(daily)+"）"}if(item.key==="btcEtfFlow")return flowValue(r[item.key]);if(item.scale==="rate")return ratePct(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
+function extentValues(item,r){return item.kind==="candle"&&priceMode==="candle"?["Open","High","Low",""].map(s=>ratioValue(item,r,s)):[plotValue(item,r)]}
 function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.flatMap(r=>extentValues(item,r)).filter(finite)});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
 function baseRange(){const end=displayEnd();return rangeMode==="twoYear"?[Math.max(rows[0].t,rows[rows.length-1].t-DAY*730),end]:[rows[0].t,end]}
@@ -874,7 +990,7 @@ function drawCandles(key){
 }
 function drawPath(item){
   if(hidden[item.key])return;
-  if(priceMode==="candle"&&item.scale==="ratio")return;
+  if(priceMode==="candle"&&item.kind==="candle")return;
   ctx.beginPath();
   let open=false;
   rows.forEach(r=>{
@@ -928,9 +1044,9 @@ function draw(active,eventDate=null){
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);if(priceMode==="candle"){drawCandles("btc");drawCandles("eth")}ctx.restore();
   drawEvents(eventDate);
-  ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("BTC / ETH（起点=0%）",0,0);ctx.restore();
+  ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("价格与BTC/ETH比值（起点=0%）",0,0);ctx.restore();
   ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText("USDT / USDC / ETF累计净流入（$B）",0,0);ctx.restore();
-  if(active!=null){const r=rows[active],x=xScale(r.t);ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.62)";ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);series.forEach(item=>{if(priceMode==="candle"&&item.scale==="ratio")return;const v=plotValue(item,r);if(hidden[item.key]||v==null)return;ctx.fillStyle="#fff";ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,yFor(item,v),3.3,0,Math.PI*2);ctx.fill();ctx.stroke()})}
+  if(active!=null){const r=rows[active],x=xScale(r.t);ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.62)";ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);series.forEach(item=>{if(priceMode==="candle"&&item.kind==="candle")return;const v=plotValue(item,r);if(hidden[item.key]||v==null)return;ctx.fillStyle="#fff";ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,yFor(item,v),3.3,0,Math.PI*2);ctx.fill();ctx.stroke()})}
 }
 function clampX(x){return Math.max(box.x0,Math.min(box.x1,x))}
 function pointer(e){const rect=canvas.getBoundingClientRect();return{x:e.clientX-rect.left,y:e.clientY-rect.top,rect}}
@@ -959,7 +1075,7 @@ function showTipNow(p){
       draw(null,e.date);const x=xScale(e.t);
       ctx.setLineDash([4,5]);ctx.strokeStyle="rgba(37,99,235,.42)";ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);
       tip.className="tip";
-      tip.innerHTML=`<b>${e.label}</b><br>时间：${e.dateLabel}<br>类型：${e.type}<br>${e.description}`;
+      tip.innerHTML=`<b>${e.label}</b><br>时间：${e.dateLabel} ${e.timezone||""}<br>类型：${e.type}<br>${e.description}`;
       hoverKey=key;
     }
     tip.style.display="block";positionTip(p,92);

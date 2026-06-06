@@ -11,6 +11,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.offline import get_plotlyjs
 
+from scripts.mobile_chart_support import add_plotly_mobile_support
+
 from .transform import opening_markers
 
 
@@ -112,6 +114,8 @@ def write_plot(
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
         hovermode="x unified",
+        hoverdistance=50,
+        spikedistance=50,
         legend={"orientation": "h", "yanchor": "bottom", "y": 1.06, "xanchor": "left", "x": 0},
         xaxis={
             "title": "UTC+0 time",
@@ -120,6 +124,11 @@ def write_plot(
             "showgrid": True,
             "gridcolor": "#e5e7eb",
             "zeroline": False,
+            "showspikes": True,
+            "spikemode": "across",
+            "spikesnap": "cursor",
+            "spikecolor": "rgba(71,85,105,.45)",
+            "spikethickness": 1,
         },
         yaxis={
             "title": "Move from local open (bp)",
@@ -127,6 +136,11 @@ def write_plot(
             "gridcolor": "#e5e7eb",
             "zeroline": True,
             "zerolinecolor": "#94a3b8",
+            "showspikes": True,
+            "spikemode": "across",
+            "spikesnap": "cursor",
+            "spikecolor": "rgba(71,85,105,.45)",
+            "spikethickness": 1,
         },
         font={"family": "Microsoft YaHei, Noto Sans CJK SC, Arial, sans-serif", "color": "#172033"},
     )
@@ -279,6 +293,12 @@ def write_html(fig: go.Figure, output_html: str | Path, target_date, available_d
 </body>
 </html>
 """
+    page = add_plotly_mobile_support(
+        page,
+        desktop_margin={"l": 70, "r": 150, "t": 124, "b": 96},
+        tablet_margin={"l": 62, "r": 98, "t": 112, "b": 82},
+        phone_margin={"l": 54, "r": 46, "t": 94, "b": 70},
+    )
     path.write_text(page, encoding="utf-8")
 
 

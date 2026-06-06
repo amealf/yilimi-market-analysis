@@ -9,6 +9,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.offline import get_plotlyjs
 
+from scripts.mobile_chart_support import add_plotly_mobile_support
+
 
 PYTHON_DEFAULT_COLORS = [
     "#1f77b4",
@@ -69,6 +71,8 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
         hovermode="x unified",
+        hoverdistance=50,
+        spikedistance=50,
         hoverlabel={
             "bgcolor": "rgba(255,255,255,0.25)",
             "bordercolor": "rgba(100,116,139,0.35)",
@@ -102,12 +106,22 @@ def write_plot(data: pd.DataFrame, markets: list[dict], output_html: str | Path)
             "tick0": "2018-01-01",
             "tickformat": "%Y",
             "rangebreaks": [{"bounds": ["sat", "mon"]}],
+            "showspikes": True,
+            "spikemode": "across",
+            "spikesnap": "cursor",
+            "spikecolor": "rgba(71,85,105,.45)",
+            "spikethickness": 1,
         },
         yaxis={
             "title": "Yield (%)",
             "showgrid": True,
             "gridcolor": "#e5e7eb",
             "zeroline": False,
+            "showspikes": True,
+            "spikemode": "across",
+            "spikesnap": "cursor",
+            "spikecolor": "rgba(71,85,105,.45)",
+            "spikethickness": 1,
         },
         font={"family": "Microsoft YaHei, Noto Sans CJK SC, Arial, sans-serif", "color": "#172033"},
     )
@@ -386,6 +400,12 @@ def write_html(fig: go.Figure, output_html: str | Path) -> None:
 </body>
 </html>
 """
+    page = add_plotly_mobile_support(
+        page,
+        desktop_margin={"l": 72, "r": 76, "t": 104, "b": 96},
+        tablet_margin={"l": 62, "r": 58, "t": 96, "b": 82},
+        phone_margin={"l": 54, "r": 34, "t": 86, "b": 70},
+    )
     path.write_text(page, encoding="utf-8")
 
 
