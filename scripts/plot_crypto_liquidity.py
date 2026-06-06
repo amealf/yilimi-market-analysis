@@ -224,54 +224,86 @@ DATA_EXPLANATION_ZH_MD = """# USDT发行量 与 BTC/ETH
 
 ## 用途
 
-观察 BTC、ETH、SOL、BNB、BTC/ETH比值、USDT、USDC、BTC ETF累计净流入、美国2Y利率。
+这张图用于同时观察加密资产价格、稳定币规模、BTC ETF资金、美国2Y利率和关键事件。它适合看资金环境和价格节奏是否同向，也适合发现背离。事件只用于辅助理解，不能单独当成因果结论。
 
-## 价格
+## 价格与比值
 
-BTC、ETH默认显示。SOL、BNB默认隐藏。百分比模式看起点涨跌幅；对数模式看起点对数变化；K线模式看开高低收。
+BTC、ETH默认显示。SOL、BNB默认隐藏，可以点击图例开启。左轴可以在百分比和对数之间切换：百分比看相对起点的累计涨跌幅，对数形式适合观察长周期的大幅波动。
 
-## 稳定币
+K线模式会按日、周、月、季显示开高低收。悬停窗仍显示美元价格和当期涨跌幅，方便同时看走势形态和具体价格。
 
-USDT、USDC来自 DefiLlama，单位为十亿美元。USDT+USDC默认显示，用来观察链上美元流动性。
+BTC/ETH比值默认隐藏。它用 BTC价格 / ETH价格 计算，用来观察 BTC 相对 ETH 的强弱变化。比值上行表示 BTC 相对占优，比值下行表示 ETH 相对占优。
 
-## ETF 与利率
+## 稳定币规模
 
-BTC ETF累计净流入来自 Farside Investors。美国2Y利率来自 FRED，默认隐藏，用来观察政策利率预期。
+USDT、USDC和USDT+USDC使用十亿美元为单位。USDT+USDC默认显示，可以作为链上美元存量的参考。
+
+稳定币规模变化通常比价格慢。规模扩张时，说明链上可用美元存量增加；规模收缩时，说明链上美元存量减少。它更适合观察中期资金环境，不适合解释每一天的价格波动。
+
+## ETF累计净流入
+
+BTC ETF累计净流入显示美国现货 BTC ETF每日净流入的累计值，单位为十亿美元。它反映传统金融账户进入或退出 BTC 的资金压力。
+
+ETF资金和稳定币资金属于不同入口。稳定币偏链上和交易所资金环境，ETF偏传统金融账户资金环境。两者同向时，资金信号更一致；两者背离时，需要结合价格和利率一起看。
+
+## 美国2Y利率
+
+美国2Y利率默认隐藏。它常用于观察市场对Fed政策利率路径的预期。
+
+2Y利率上行时，风险资产通常面临估值压力；2Y利率下行时，市场可能在定价货币环境放松，也可能在定价增长压力。需要结合价格和资金同时判断。
 
 ## 事件
 
-事件标注显示当地 UTC±x 时区。例如非农 2026-06-05 使用 UTC-4（美国东部夏令时间）。
+底部事件包含宏观政策、监管变化、稳定币冲击和ETF相关事件。悬停窗会显示事件日期和当地 UTC±x 时区。例如非农 2026-06-05 使用 UTC-4（美国东部夏令时间）。
+
+事件的作用是给图表提供上下文。判断行情时，需要同时看事件发生前后的价格、稳定币、ETF资金和利率变化。
 
 ## 时间
 
-价格采用 UTC日线。刷新时间采用 UTC+8。
+价格采用 UTC日线。事件保留当地时区。刷新时间采用 UTC+8。
 """
 
 DATA_EXPLANATION_EN_MD = """# USDT Supply and BTC/ETH
 
 ## Purpose
 
-Track BTC, ETH, SOL, BNB, the BTC/ETH ratio, USDT, USDC, cumulative spot BTC ETF net inflow, and the US 2Y yield.
+This chart brings together crypto prices, stablecoin supply, BTC ETF flows, the US 2Y yield, and key events. It helps compare price action with the funding backdrop and spot divergences. Event markers add context, but they should not be read as standalone causal proof.
 
-## Prices
+## Prices and Ratio
 
-BTC and ETH are visible by default. SOL and BNB are hidden by default. Percent mode shows change from the chart start. Log mode shows log change from the chart start. Candle mode shows OHLC data.
+BTC and ETH are visible by default. SOL and BNB are hidden by default and can be enabled from the legend. The left axis can switch between percent and log form: percent mode shows cumulative change from the chart start, while log form is useful for long periods with large moves.
 
-## Stablecoins
+Candle mode shows OHLC values by day, week, month, or quarter. The hover box still shows dollar prices and period changes, so price levels and chart shape can be read together.
 
-USDT and USDC supply comes from DefiLlama and is shown in billions of dollars. USDT+USDC is visible by default and is used as a proxy for on-chain dollar liquidity.
+The BTC/ETH ratio is hidden by default. It is calculated as BTC price / ETH price and helps track relative strength. A rising ratio means BTC is outperforming ETH; a falling ratio means ETH is outperforming BTC.
 
-## ETF and Rates
+## Stablecoin Supply
 
-Cumulative spot BTC ETF net inflow comes from Farside Investors. The US 2Y yield comes from FRED, is hidden by default, and helps frame policy-rate expectations.
+USDT, USDC, and USDT+USDC are shown in billions of dollars. USDT+USDC is visible by default and can be used as a reference for on-chain dollar balances.
+
+Stablecoin supply usually changes more slowly than prices. Expansion points to more on-chain dollar balances; contraction points to fewer on-chain dollar balances. It is better for reading the medium-term funding backdrop than for explaining every daily price move.
+
+## ETF Cumulative Net Inflow
+
+BTC ETF cumulative net inflow tracks cumulative daily net inflow into US spot BTC ETFs, shown in billions of dollars. It reflects buying or selling pressure through traditional financial accounts.
+
+ETF money and stablecoin money enter the market through different channels. Stablecoins reflect on-chain and exchange funding conditions, while ETFs reflect traditional-account access to BTC. When both move together, the funding signal is more aligned; when they diverge, price and rates need extra attention.
+
+## US 2Y Yield
+
+The US 2Y yield is hidden by default. It is often used to read market expectations for the Fed policy-rate path.
+
+When the 2Y yield rises, risk assets usually face valuation pressure. When it falls, the market may be pricing easier monetary conditions or weaker growth. Price, flows, and rates should be read together.
 
 ## Events
 
-Event markers show the local UTC±x timezone. For example, the 2026-06-05 nonfarm payrolls marker uses UTC-4 (US Eastern daylight time).
+Bottom event markers cover macro policy, regulation, stablecoin shocks, and ETF-related events. The hover box shows the event date and local UTC±x timezone. For example, the 2026-06-05 nonfarm payrolls marker uses UTC-4 (US Eastern daylight time).
+
+Events provide context for the chart. For market interpretation, compare prices, stablecoins, ETF flows, and rates before and after the event.
 
 ## Time
 
-Prices use UTC daily candles. Refresh time uses UTC+8.
+Prices use UTC daily candles. Events keep their local timezone. Refresh time uses UTC+8.
 """
 
 DATA_EXPLANATION_MD = DATA_EXPLANATION_ZH_MD
@@ -753,68 +785,9 @@ resize();
     output_html.write_text(html_text.replace("__PAYLOAD__", payload), encoding="utf-8")
 
 
-DOC_TERMS = [
-    "BTC/ETH",
-    "Farside Investors",
-    "CryptoCompare",
-    "DefiLlama",
-    "USDT+USDC",
-    "BTC ETF",
-    "Candle mode",
-    "Percent mode",
-    "Log mode",
-    "Refresh time",
-    "stablecoins",
-    "stablecoin",
-    "liquidity",
-    "policy-rate",
-    "nonfarm payrolls",
-    "policy-rate expectations",
-    "spot BTC ETF net inflow",
-    "on-chain dollar liquidity",
-    "BTC",
-    "ETH",
-    "SOL",
-    "BNB",
-    "USDT",
-    "USDC",
-    "ETF",
-    "FRED",
-    "UTC",
-    "OHLC",
-    "USD",
-    "US 2Y yield",
-    "用途",
-    "价格",
-    "百分比模式",
-    "对数模式",
-    "K线模式",
-    "稳定币",
-    "ETF",
-    "利率",
-    "时间",
-    "刷新时间",
-    "美国2Y利率",
-    "发行量",
-    "链上美元流动性",
-    "累计净流入",
-    "政策利率预期",
-    "事件标注",
-    "时区",
-    "非农",
-]
-
-DOC_TERM_PATTERN = re.compile("|".join(re.escape(html.escape(term)) for term in sorted(DOC_TERMS, key=len, reverse=True)))
-
-
-def highlight_terms(text: str) -> str:
-    return DOC_TERM_PATTERN.sub(lambda match: f'<span class="term">{match.group(0)}</span>', text)
-
-
 def inline_markdown(text: str) -> str:
     escaped = html.escape(text)
-    escaped = re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
-    return highlight_terms(escaped)
+    return re.sub(r"`([^`]+)`", r"<code>\1</code>", escaped)
 
 
 def render_markdown_document(markdown_text: str) -> str:
@@ -859,7 +832,6 @@ def render_data_explanation_html(zh_markdown: str, en_markdown: str) -> str:
     h2{{margin:26px 0 10px;font-size:21px;line-height:1.38}}
     h3{{margin:22px 0 8px;font-size:19px;line-height:1.38}}
     p{{margin:0 0 15px;color:#344054;font-size:18px}}
-    .term{{color:#2563eb;font-weight:650}}
     code{{padding:2px 5px;border-radius:4px;background:#f1f5f9;color:#0f172a;font-family:Consolas,monospace;font-size:.92em}}
     a{{color:#2563eb;text-decoration:underline;text-underline-offset:2px}}
     .back{{display:inline-flex;margin-bottom:14px;color:#2563eb;font-size:16px}}
@@ -1125,7 +1097,13 @@ function drawLegend(x,y,maxX){
     ctx.fillStyle=off?"rgba(82,96,113,.58)":colors.text;
     ctx.lineWidth=2;
     ctx.setLineDash(item.dash||[]);
-    ctx.beginPath();ctx.moveTo(cur,rowY+3);ctx.lineTo(cur+9,rowY-3);ctx.lineTo(cur+18,rowY);ctx.lineTo(cur+28,rowY-7);ctx.stroke();ctx.setLineDash([]);
+    ctx.beginPath();
+    if(item.kind==="candle"){
+      ctx.moveTo(cur,rowY+3);ctx.lineTo(cur+9,rowY-3);ctx.lineTo(cur+18,rowY);ctx.lineTo(cur+28,rowY-7);
+    }else{
+      ctx.moveTo(cur,rowY);ctx.lineTo(cur+28,rowY);
+    }
+    ctx.stroke();ctx.setLineDash([]);
     ctx.textAlign="left";ctx.fillText(label,cur+36,rowY+4);
     ctx.globalAlpha=1;
     cur+=total;
@@ -1192,9 +1170,9 @@ function drawModeTabs(x,y){
 }
 function hitMode(p){return modeBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawAxes(){
-  niceTicks(box.ratioMin,box.ratioMax,6).forEach(v=>{const y=yRatio(v);ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(axisPct(v),box.x0-9,y+4)});
-  [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
-  if(!hidden.us2y)[box.rateMin,(box.rateMin+box.rateMax)/2,box.rateMax].forEach(v=>{const y=yRate(v);ctx.fillStyle=colors.us2y;ctx.textAlign="left";ctx.fillText(ratePct(v),box.x1+68,y+4)});
+  niceTicks(box.ratioMin,box.ratioMax,6).forEach(v=>{const y=yRatio(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(axisPct(v),box.x0-9,y+4)});
+  [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
+  if(!hidden.us2y)[box.rateMin,(box.rateMin+box.rateMax)/2,box.rateMax].forEach(v=>{const y=yRate(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.us2y;ctx.textAlign="left";ctx.fillText(ratePct(v),box.x1+68,y+4)});
 }
 function drawCandles(key){
   if(hidden[key])return;
