@@ -21,7 +21,7 @@ from mobile_chart_support import add_canvas_mobile_support
 
 
 START_DATE = date(2015, 8, 7)
-END_DATE = date.today()
+END_DATE = datetime.now(ZoneInfo("Asia/Shanghai")).date()
 DISPLAY_START = pd.Timestamp("2018-09-01")
 MAX_CACHE_STALENESS_DAYS = 3
 PRICE_SOURCE = "https://min-api.cryptocompare.com/data/v2/histoday"
