@@ -105,6 +105,13 @@ MARKET_EVENTS = [
         "type": "美国稳定币法案",
         "description": "美国签署GENIUS Act，为支付稳定币提供联邦监管框架，适合观察稳定币进入制度化阶段。",
     },
+    {
+        "date": "2026-06-05",
+        "dateLabel": "2026-06-05",
+        "label": "非农超预期",
+        "type": "利率预期冲击",
+        "description": "BLS公布美国5月非农就业增加17.2万人，失业率维持4.3%；强于预期的数据推升高利率预期，风险资产承压。",
+    },
 ]
 
 
@@ -648,7 +655,7 @@ const series=[
   {key:"us2y",label:"美国2Y利率",color:colors.us2y,scale:"rate",width:1.1}
 ];
 const periodNames={day:"日",week:"周",month:"月",quarter:"季"};
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],modeBoxes=[],period="day",priceMode="line",hoverPeriod=null,hoverMode=null,hidden={usdt:true,usdc:true,us2y:true};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],rangeBoxes=[],modeBoxes=[],period="day",priceMode="line",rangeMode="all",hoverPeriod=null,hoverRange=null,hoverMode=null,hidden={usdt:true,usdc:true,us2y:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function finite(v){return v!=null&&Number.isFinite(v)}
@@ -693,7 +700,8 @@ function valueText(item,r){if(item.scale==="ratio"){const daily=item.key==="btc"
 function extentValues(item,r){return item.scale==="ratio"&&priceMode==="candle"?["Open","High","Low",""].map(s=>ratioValue(item,r,s)):[plotValue(item,r)]}
 function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.flatMap(r=>extentValues(item,r)).filter(finite)});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
-function currentRange(){return zoom||[rows[0].t,displayEnd()]}
+function baseRange(){const end=displayEnd();return rangeMode==="year"?[Math.max(rows[0].t,rows[rows.length-1].t-DAY*365),end]:[rows[0].t,end]}
+function currentRange(){return zoom||baseRange()}
 function visibleRows(){const [t0,t1]=currentRange();const sample=rows.filter(r=>r.t>=t0&&r.t<=t1);return sample.length?sample:rows}
 function resize(){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
 function xScale(t){return box.x0+(t-box.t0)/(box.t1-box.t0)*(box.x1-box.x0)}
@@ -743,6 +751,24 @@ function drawPeriodTabs(x,y){
   ctx.lineWidth=1;
 }
 function hitPeriod(p){return periodBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
+function drawRangeTabs(x,y){
+  rangeBoxes=[];
+  const labels=[["year","近一年"],["all","所有时间"]];
+  ctx.font="12px Microsoft YaHei,Arial";
+  let left=x;
+  labels.forEach(([key,label])=>{
+    const w=label==="所有时间"?62:50,h=24,active=rangeMode===key,hovered=hoverRange===key;
+    rangeBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});
+    ctx.strokeStyle=active?"#60a5fa":hovered?"#93c5fd":"rgba(71,85,105,.42)";
+    ctx.lineWidth=active||hovered?1.35:.9;
+    roundRect(left,y,w,h,7);ctx.stroke();
+    ctx.fillStyle=hovered?"#17202a":active?"#17202a":"rgba(71,85,105,.58)";
+    ctx.textAlign="center";ctx.fillText(label,left+w/2,y+16);
+    left+=w+6;
+  });
+  ctx.lineWidth=1;
+}
+function hitRange(p){return rangeBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawModeTabs(x,y){
   modeBoxes=[];
   const labels=[["line"],["candle"]];
@@ -781,9 +807,9 @@ function drawCandles(key){
     if([o,h,l,c].some(v=>!finite(v)))return;
     const x=xScale(r.t);
     if(x<box.x0-bodyW||x>box.x1+bodyW)return;
-    const yO=yRatio(o),yH=yRatio(h),yL=yRatio(l),yC=yRatio(c),top=Math.min(yO,yC),bodyH=Math.max(1,Math.abs(yC-yO));
+    const yO=yRatio(o),yH=yRatio(h),yL=yRatio(l),yC=yRatio(c),top=Math.min(yO,yC),bottom=Math.max(yO,yC),bodyH=Math.max(1,bottom-top);
     ctx.strokeStyle=edge;ctx.fillStyle=c>=o?colors.candleUp:down;ctx.lineWidth=.8;
-    ctx.beginPath();ctx.moveTo(x,yH);ctx.lineTo(x,yL);ctx.stroke();
+    ctx.beginPath();if(yH<top){ctx.moveTo(x,yH);ctx.lineTo(x,top)}if(yL>top+bodyH){ctx.moveTo(x,top+bodyH);ctx.lineTo(x,yL)}ctx.stroke();
     ctx.fillRect(x-bodyW/2,top,bodyW,bodyH);ctx.strokeRect(x-bodyW/2,top,bodyW,bodyH);
   });
 }
@@ -808,7 +834,7 @@ function roundRect(x,y,w,h,r){
 function drawEvents(activeEventDate=null){
   eventBoxes=[];
   ctx.font="11px Microsoft YaHei,Arial";
-  const lanes=[box.x0-999,box.x0-999,box.x0-999],visible=events.filter(e=>e.t>=box.t0&&e.t<=box.t1).sort((a,b)=>a.t-b.t);
+  const laneCount=box.x1-box.x0<520?5:3,lanes=Array(laneCount).fill(box.x0-999),visible=events.filter(e=>e.t>=box.t0&&e.t<=box.t1).sort((a,b)=>a.t-b.t);
   visible.forEach(event=>{
     const active=activeEventDate===event.date,x=xScale(event.t),pad=7,w=Math.ceil(ctx.measureText(event.label).width+pad*2),h=18;
     let lane=lanes.findIndex(right=>right<=x-w/2-4);
@@ -824,8 +850,8 @@ function drawEvents(activeEventDate=null){
 function draw(active,eventDate=null){
   refreshRows();
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035),compactHeader=w<760;
-  const axisLeft=76,axisRight=86,titleY=outer+14,legendY=outer+(compactHeader?70:46),xLabelGap=isEmbed?35:38;
-  const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+(compactHeader?146:82),y1=h-outer-xLabelGap;
+  const axisLeft=76,axisRight=86,titleY=outer+14,legendY=outer+(compactHeader?116:46),xLabelGap=isEmbed?35:38;
+  const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+(compactHeader?230:82),y1=h-outer-xLabelGap;
   const [t0,t1]=currentRange(),sample=visibleRows();
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample);
   const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable","btcEtfFlow"]),sample);
@@ -833,8 +859,10 @@ function draw(active,eventDate=null){
   box={x0,x1,y0,y1,t0,t1,ratioMin:Math.log(Math.max(ratioMin0*.75,.01)),ratioMax:Math.log(ratioMax0*1.18),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1),rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   ctx.fillStyle=colors.text;ctx.font="700 21px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText("USDT发行量 与 BTC/ETH",w/2,titleY);
-  const periodWidth=170,modeWidth=74,periodX=x1-periodWidth,modeX=periodX-modeWidth-10,controlY=compactHeader?titleY+18:titleY-18;
-  drawLegend(x0,legendY,compactHeader?x1:modeX-8);drawModeTabs(modeX,controlY);drawPeriodTabs(periodX,controlY);
+  const periodWidth=170,rangeWidth=118,modeWidth=74,controlY=compactHeader?titleY+18:titleY-18;
+  let periodX=x1-periodWidth,rangeX=periodX-rangeWidth-10,modeX=rangeX-modeWidth-10,periodY=controlY;
+  if(compactHeader){modeX=x0;rangeX=x1-rangeWidth;periodX=x0;periodY=controlY+30}
+  drawLegend(x0,legendY,compactHeader?x1:modeX-8);drawModeTabs(modeX,controlY);drawRangeTabs(rangeX,controlY);drawPeriodTabs(periodX,periodY);
   const startYear=new Date(box.t0).getUTCFullYear(),endYear=new Date(box.t1).getUTCFullYear();
   for(let year=startYear;year<=endYear;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
   if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：UTC+8 ${P.generatedAt}　数据来源：${P.dataSources}`,x0,h-Math.max(8,outer*.35))}
@@ -881,11 +909,11 @@ function showTipNow(p){
   tip.style.display="block";tip.style.left=Math.min(p.rect.width-250,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
 }
 function showTip(p){pendingPoint=p;if(hoverFrame)return;hoverFrame=true;requestAnimationFrame(()=>{hoverFrame=false;const next=pendingPoint;pendingPoint=null;if(next)showTipNow(next)})}
-canvas.addEventListener("click",e=>{const p=pointer(e),mode=hitMode(p),tab=hitPeriod(p);if(mode){priceMode=mode.key;hoverMode=mode.key;clearTip();draw();return}if(tab){period=tab.key;hoverPeriod=tab.key;zoom=null;clearTip();draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];clearTip();draw()});
-canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitMode(p)||hitPeriod(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};clearTip()});
-canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;clearTip();draw();drawSelection();return}const mode=hitMode(p);if(mode){if(hoverMode!==mode.key){hoverMode=mode.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}const tab=hitPeriod(p);if(tab){if(hoverPeriod!==tab.key){hoverPeriod=tab.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}if(hoverMode!==null||hoverPeriod!==null){hoverMode=null;hoverPeriod=null;clearTip();draw()}showTip(p)});
+canvas.addEventListener("click",e=>{const p=pointer(e),mode=hitMode(p),range=hitRange(p),tab=hitPeriod(p);if(mode){priceMode=mode.key;hoverMode=mode.key;clearTip();draw();return}if(range){rangeMode=range.key;hoverRange=range.key;zoom=null;clearTip();draw();return}if(tab){period=tab.key;hoverPeriod=tab.key;zoom=null;clearTip();draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];clearTip();draw()});
+canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitMode(p)||hitRange(p)||hitPeriod(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};clearTip()});
+canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;clearTip();draw();drawSelection();return}const mode=hitMode(p);if(mode){if(hoverMode!==mode.key){hoverMode=mode.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}const range=hitRange(p);if(range){if(hoverRange!==range.key){hoverRange=range.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}const tab=hitPeriod(p);if(tab){if(hoverPeriod!==tab.key){hoverPeriod=tab.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}if(hoverMode!==null||hoverRange!==null||hoverPeriod!==null){hoverMode=null;hoverRange=null;hoverPeriod=null;clearTip();draw()}showTip(p)});
 window.addEventListener("mouseup",()=>{if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1);if(Math.abs(x1-x0)>12){const a=timeAtX(x0),b=timeAtX(x1);zoom=[Math.min(a,b),Math.max(a,b)]}drag=null;clearTip();draw()});
-canvas.addEventListener("mouseleave",()=>{if(drag)return;hoverMode=null;hoverPeriod=null;clearTip();canvas.style.cursor="default";draw()});
+canvas.addEventListener("mouseleave",()=>{if(drag)return;hoverMode=null;hoverRange=null;hoverPeriod=null;clearTip();canvas.style.cursor="default";draw()});
 canvas.addEventListener("dblclick",()=>{zoom=null;drag=null;clearTip();draw()});
 window.addEventListener("resize",resize);
 refreshRows();
