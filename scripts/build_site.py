@@ -17,10 +17,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "scripts"
 SITE_DIR = ROOT / "site"
 CONFIG_PATH = ROOT / "charts.yml"
-DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、KOFIA FreeSIS、Yahoo Finance、Naver Finance、CNBC、TradingView、ICE、CSV"
+DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、Binance、KOFIA FreeSIS、Yahoo Finance、Naver Finance、CNBC、TradingView、ICE、CSV"
 CATEGORY_SOURCES = {
     "a-share-margin": "东方财富、新浪财经",
     "crypto-liquidity": "CryptoCompare、DefiLlama",
+    "intraday-analysis": "Binance",
     "other-markets": "KOFIA FreeSIS、Yahoo Finance、Naver Finance、TradingView、ICE",
     "global-rates": "CNBC、TradingView",
 }
@@ -86,6 +87,22 @@ def build_usdt_speed_indicator(chart: dict) -> dict:
 
     source_cache_path = ROOT / chart["output_csv"]
     data = module.build_indicator_frame(cache_path=source_cache_path if source_cache_path.exists() else csv_path)
+    data.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    module.write_interactive_html(data, html_path)
+    return module.chart_meta(data)
+
+
+def build_btc_intraday_flow(chart: dict) -> dict:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+    module = importlib.import_module(chart["module"])
+
+    csv_path = site_path(chart["output_csv"])
+    html_path = site_path(chart["output_html"])
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+
+    source_cache_path = ROOT / chart["output_csv"]
+    data = module.build_intraday_frame(cache_path=source_cache_path if source_cache_path.exists() else csv_path)
     data.to_csv(csv_path, index=False, encoding="utf-8-sig")
     module.write_interactive_html(data, html_path)
     return module.chart_meta(data)
@@ -204,6 +221,7 @@ def build_global_30y_bond_daily(chart: dict) -> dict:
 BUILDERS = {
     "margin_csi500": build_margin_csi500,
     "usdt_speed_indicator": build_usdt_speed_indicator,
+    "btc_intraday_flow": build_btc_intraday_flow,
     "korea_margin_kospi": build_korea_margin_kospi,
     "oil_price_events": build_oil_price_events,
     "static_html": build_static_html,
@@ -465,7 +483,7 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
             render_page(category["title"], category_body),
             encoding="utf-8",
         )
-        if category["id"] in {"other-markets", "global-rates"}:
+        if category["id"] in {"intraday-analysis", "other-markets", "global-rates"}:
             home_cards.append(category_card(category, category_charts))
         else:
             home_cards.append("".join(chart_card(chart, category, generated) for chart in category_charts))

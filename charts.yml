@@ -1,6 +1,6 @@
 site:
   title: Yilimi Market Analysis
-  description: 跟踪 A 股融资余额、BTC/ETH 价格、稳定币发行量、韩国信用交易融资余额和全球30Y国债收益率。
+  description: 跟踪 A 股融资余额、BTC/ETH 价格、稳定币发行量、BTC日内主动成交、韩国信用交易融资余额和全球30Y国债收益率。
 
 categories:
   - id: a-share-margin
@@ -9,6 +9,9 @@ categories:
   - id: crypto-liquidity
     title: 加密市场流动性
     description: 跟踪 BTC 价格与 USDT 净增速度多空指标。
+  - id: intraday-analysis
+    title: 日内分析
+    description: 跟踪 BTC 日内价格、主动成交和短周期资金压力。
   - id: other-markets
     title: 其他市场
     description: 跟踪韩国信用交易融资余额、KOSPI、外国人净买入、韩国10年国债收益率、USD/KRW和原油价格走势。
@@ -33,6 +36,14 @@ charts:
     module: plot_crypto_liquidity
     output_html: charts/crypto-liquidity/usdt-speed-indicator.html
     output_csv: data/crypto-liquidity/usdt-speed-indicator.csv
+  - id: btc-intraday-flow
+    category: intraday-analysis
+    title: BTC 日内主动成交与价格
+    description: Binance BTCUSDT 1分钟历史，默认显示最近24小时；可切换2到5天连续行情和1m、5m、15m、30m、1h周期。
+    builder: btc_intraday_flow
+    module: plot_btc_intraday_flow
+    output_html: charts/intraday-analysis/btc-intraday-flow.html
+    output_csv: data/intraday-analysis/btc-intraday-flow.csv
   - id: korea-margin-kospi
     category: other-markets
     title: KOSPI & Cash flow
