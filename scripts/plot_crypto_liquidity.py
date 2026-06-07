@@ -1176,6 +1176,15 @@ function drawModeTabs(x,y){
 }
 function hitMode(p){return modeBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawAxes(){
+  const zeroY=yRatio(0);
+  if(zeroY>=box.y0&&zeroY<=box.y1){
+    ctx.save();
+    ctx.setLineDash([5,5]);
+    ctx.strokeStyle="rgba(82,96,113,.36)";
+    ctx.lineWidth=.75;
+    ctx.beginPath();ctx.moveTo(box.x0,zeroY);ctx.lineTo(box.x1,zeroY);ctx.stroke();
+    ctx.restore();
+  }
   niceTicks(box.ratioMin,box.ratioMax,6).forEach(v=>{const y=yRatio(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(axisPct(v),box.x0-9,y+4)});
   [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
   if(!hidden.us2y)[box.rateMin,(box.rateMin+box.rateMax)/2,box.rateMax].forEach(v=>{const y=yRate(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.us2y;ctx.textAlign="left";ctx.fillText(ratePct(v),box.x1+68,y+4)});
@@ -1239,7 +1248,16 @@ function draw(active,eventDate=null){
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample),ratioPad=Math.max((ratioMax0-ratioMin0)*.12,8);
   const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable","btcEtfFlow"]),sample);
   const [rateMin0,rateMax0]=extent(activeKeys("rate",["us2y"]),sample),ratePad=Math.max((rateMax0-rateMin0)*.18,.15);
-  box={x0,x1,y0,y1,t0,t1,ratioMin:Math.min(ratioMin0-ratioPad,0),ratioMax:Math.max(ratioMax0+ratioPad,10),supplyMin:Math.min(0,supplyMin0*1.1),supplyMax:Math.max(supplyMax0*1.1,1),rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad};
+  let ratioMin=Math.min(ratioMin0-ratioPad,0),ratioMax=Math.max(ratioMax0+ratioPad,10);
+  const zeroFloorFraction=.16,ratioFloorMin=-(zeroFloorFraction*ratioMax)/(1-zeroFloorFraction);
+  ratioMin=Math.min(ratioMin,ratioFloorMin);
+  const zeroFraction=(0-ratioMin)/(ratioMax-ratioMin);
+  let supplyMax=Math.max(supplyMax0*1.1,1),supplyMin=-(zeroFraction*supplyMax)/(1-zeroFraction);
+  if(supplyMin0<0&&supplyMin0<supplyMin){
+    supplyMin=supplyMin0*1.1;
+    supplyMax=Math.max(supplyMax,(-supplyMin)*(1-zeroFraction)/zeroFraction);
+  }
+  box={x0,x1,y0,y1,t0,t1,ratioMin,ratioMax,supplyMin,supplyMax,rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   ctx.fillStyle=colors.text;ctx.font="700 21px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText(tr("title"),w/2,titleY);
   const periodWidth=170,scaleWidth=82,modeWidth=74,controlY=compactHeader?titleY+18:titleY-18;
