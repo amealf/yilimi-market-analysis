@@ -61,6 +61,9 @@ charts:
     source_csv: static/other-markets/hsi-net-flow.csv
     output_html: charts/other-markets/hsi-net-flow.html
     output_csv: data/other-markets/hsi-net-flow.csv
+    password_gate:
+      password: yilimi
+      view_html: charts/other-markets/hsi-net-flow-view.html
     metrics:
       - label: 市场
         value: HSI

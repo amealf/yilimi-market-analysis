@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import html
 import importlib
+import json
 import shutil
 import sys
 from datetime import datetime
@@ -173,13 +174,106 @@ def build_oil_price_events(chart: dict) -> dict:
     return module.chart_meta(data)
 
 
+def password_gate_html(chart: dict, gate: dict, view_href: str, storage_key: str) -> str:
+    title = html.escape(chart["title"])
+    password = json.dumps(str(gate["password"]), ensure_ascii=False)
+    view_href_json = json.dumps(view_href, ensure_ascii=False)
+    storage_key_json = json.dumps(storage_key, ensure_ascii=False)
+    return f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{title}</title>
+  <style>
+    html,body{{width:100%;height:100%;margin:0;}}
+    body{{display:flex;align-items:center;justify-content:center;background:#fff;font-family:Microsoft YaHei,Arial,sans-serif;color:#1f2937;}}
+    .gate-card{{width:min(380px,calc(100vw - 48px));padding:28px 28px 24px;border:2px solid #f5b5b5;border-radius:14px;background:#fff;box-shadow:0 14px 36px rgba(15,23,42,.10);}}
+    .gate-title{{margin:0 0 18px;text-align:center;font-size:22px;line-height:30px;font-weight:700;}}
+    .gate-form{{display:flex;gap:10px;}}
+    .gate-input{{flex:1;min-width:0;height:40px;border:1px solid #efb1b1;border-radius:8px;padding:0 11px;font-size:15px;outline:none;}}
+    .gate-input:focus{{border-color:#f08b8b;box-shadow:0 0 0 2px rgba(240,139,139,.18);}}
+    .gate-button{{height:40px;border:1px solid #ef9c9c;border-radius:8px;background:#fff;color:#1f2937;font-size:15px;padding:0 16px;cursor:pointer;}}
+    .gate-error{{min-height:21px;margin-top:12px;text-align:center;color:#df5c5c;font-size:13px;line-height:21px;}}
+  </style>
+</head>
+<body>
+  <main class="gate-card">
+    <h1 class="gate-title">{title}</h1>
+    <form class="gate-form" id="gate-form">
+      <input class="gate-input" id="gate-input" type="password" autocomplete="current-password" autofocus aria-label="访问密码">
+      <button class="gate-button" type="submit">进入</button>
+    </form>
+    <div class="gate-error" id="gate-error"></div>
+  </main>
+  <script>
+    (function() {{
+      var password = {password};
+      var viewHref = {view_href_json};
+      var storageKey = {storage_key_json};
+      var form = document.getElementById('gate-form');
+      var input = document.getElementById('gate-input');
+      var error = document.getElementById('gate-error');
+      try {{ sessionStorage.removeItem(storageKey); }} catch (event) {{}}
+      setTimeout(function() {{ input.focus(); }}, 60);
+      form.addEventListener('submit', function(event) {{
+        event.preventDefault();
+        if (input.value === password) {{
+          try {{ sessionStorage.setItem(storageKey, '1'); }} catch (event) {{}}
+          window.location.href = viewHref;
+        }} else {{
+          error.textContent = '密码不正确';
+          input.select();
+        }}
+      }});
+    }})();
+  </script>
+</body>
+</html>
+"""
+
+
+def add_password_view_guard(html_text: str, login_href: str, storage_key: str) -> str:
+    login_href_json = json.dumps(login_href, ensure_ascii=False)
+    storage_key_json = json.dumps(storage_key, ensure_ascii=False)
+    guard = (
+        "<script>(function(){try{if(sessionStorage.getItem("
+        + storage_key_json
+        + ")!=='1'){window.location.replace("
+        + login_href_json
+        + ");}}catch(error){window.location.replace("
+        + login_href_json
+        + ");}})();</script>"
+    )
+    if "<head>" in html_text:
+        return html_text.replace("<head>", "<head>" + guard, 1)
+    return guard + html_text
+
+
 def build_static_html(chart: dict) -> dict:
     html_path = site_path(chart["output_html"])
     csv_path = site_path(chart["output_csv"])
     html_path.parent.mkdir(parents=True, exist_ok=True)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
 
-    shutil.copy2(ROOT / chart["source_html"], html_path)
+    gate = chart.get("password_gate")
+    if gate:
+        view_html_path = site_path(gate["view_html"])
+        view_html_path.parent.mkdir(parents=True, exist_ok=True)
+        source_html = (ROOT / chart["source_html"]).read_text(encoding="utf-8")
+        storage_key = f"{chart['id']}-unlocked"
+        login_href = Path(chart["output_html"]).name
+        view_href = Path(gate["view_html"]).name
+        view_html_path.write_text(
+            add_password_view_guard(source_html, login_href, storage_key),
+            encoding="utf-8",
+        )
+        html_path.write_text(
+            password_gate_html(chart, gate, view_href, storage_key),
+            encoding="utf-8",
+        )
+    else:
+        shutil.copy2(ROOT / chart["source_html"], html_path)
     shutil.copy2(ROOT / chart["source_csv"], csv_path)
     return {
         "metrics": chart.get("metrics", []),
