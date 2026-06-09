@@ -1,11 +1,11 @@
 site:
   title: Yilimi Market Analysis
-  description: 跟踪 A 股融资余额、BTC/ETH 价格、稳定币发行量、BTC日内主动成交、韩国信用交易融资余额和全球30Y国债收益率。
+  description: 跟踪 A 股融资余额、BTC/ETH 价格、稳定币发行量、BTC日内主动成交、KOSPI现金流和全球30Y国债收益率。
 
 categories:
   - id: a-share-margin
-    title: A股融资融券
-    description: 跟踪 A 股融资余额，并与中证500、创业板指走势对照。
+    title: 现金流监控
+    description: 跟踪 A 股融资余额、KOSPI、韩国信用交易融资余额和外资净买入。
   - id: crypto-liquidity
     title: 加密市场流动性
     description: 跟踪 BTC 价格与 USDT 净增速度多空指标。
@@ -14,7 +14,7 @@ categories:
     description: 跟踪 BTC 日内价格、主动成交和短周期资金压力。
   - id: other-markets
     title: 其他市场
-    description: 跟踪韩国信用交易融资余额、KOSPI、外国人净买入、韩国10年国债收益率、USD/KRW和原油价格走势。
+    description: 跟踪 HSI 净买入和原油价格事件。
   - id: global-rates
     title: 宏观观察
     description: 跟踪美国、日本、韩国、英国30Y国债收益率日内变化，并跟踪美国、日本、韩国、英国、中国大陆30Y日线历史。
@@ -45,13 +45,13 @@ charts:
     output_html: charts/intraday-analysis/btc-intraday-flow.html
     output_csv: data/intraday-analysis/btc-intraday-flow.csv
   - id: korea-margin-kospi
-    category: other-markets
+    category: a-share-margin
     title: KOSPI & Cash flow
     description: KOSPI、韩国信用交易融资余额、外国人净买入、韩国10年国债收益率和USD/KRW的对比图。
     builder: korea_margin_kospi
     module: plot_korea_margin_kospi
-    output_html: charts/other-markets/korea-margin-kospi.html
-    output_csv: data/other-markets/korea-margin-kospi.csv
+    output_html: charts/a-share-margin/korea-margin-kospi.html
+    output_csv: data/a-share-margin/korea-margin-kospi.csv
   - id: hsi-net-flow
     category: other-markets
     title: HSI K线与累计净买入

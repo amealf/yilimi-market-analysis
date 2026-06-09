@@ -20,10 +20,10 @@ SITE_DIR = ROOT / "site"
 CONFIG_PATH = ROOT / "charts.yml"
 DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、Binance、KOFIA FreeSIS、Yahoo Finance、Naver Finance、CNBC、TradingView、ICE、CSV"
 CATEGORY_SOURCES = {
-    "a-share-margin": "东方财富、新浪财经",
+    "a-share-margin": "东方财富、新浪财经、KOFIA FreeSIS、Yahoo Finance、Naver Finance、TradingView",
     "crypto-liquidity": "CryptoCompare、DefiLlama",
     "intraday-analysis": "Binance",
-    "other-markets": "KOFIA FreeSIS、Yahoo Finance、Naver Finance、TradingView、ICE",
+    "other-markets": "TradingView、ICE、CSV",
     "global-rates": "CNBC、TradingView",
 }
 
@@ -483,7 +483,14 @@ def render_page(title: str, body: str) -> str:
 """
 
 
-def chart_card(chart: dict, category: dict, generated: dict, prefix: str = "") -> str:
+def chart_card(
+    chart: dict,
+    category: dict,
+    generated: dict,
+    prefix: str = "",
+    show_metrics: bool = True,
+    show_description: bool = True,
+) -> str:
     chart_id = chart["id"]
     info = generated.get(chart_id, {})
     chart_url = prefix + chart["output_html"].replace("\\", "/")
@@ -491,21 +498,23 @@ def chart_card(chart: dict, category: dict, generated: dict, prefix: str = "") -
     csv_url = prefix + chart["output_csv"].replace("\\", "/")
     chart_title = html.escape(chart["title"])
     description = str(chart.get("description") or "").strip()
-    description_html = f"\n  <p>{html.escape(description)}</p>" if description else ""
+    description_html = f"\n  <p>{html.escape(description)}</p>" if description and show_description else ""
     metric_rows = []
-    for metric in info.get("metrics", []):
-        date_text = metric.get("date")
-        date_html = f'<div class="metric-date">{html.escape(str(date_text))}</div>' if date_text else ""
-        metric_rows.append(
-            f"""
+    if show_metrics:
+        for metric in info.get("metrics", []):
+            date_text = metric.get("date")
+            date_html = f'<div class="metric-date">{html.escape(str(date_text))}</div>' if date_text else ""
+            metric_rows.append(
+                f"""
     <div class="metric">
       <div class="metric-label">{html.escape(str(metric.get("label", "")))}</div>
       <div class="metric-value">{html.escape(str(metric.get("value", "")))}</div>
       {date_html}
     </div>
 """
-        )
+            )
     metrics_html = "".join(metric_rows)
+    meta_html = f'\n  <div class="meta">{metrics_html}</div>' if metrics_html else ""
     return f"""
 <article class="card">
   {description_html}
@@ -517,7 +526,7 @@ def chart_card(chart: dict, category: dict, generated: dict, prefix: str = "") -
     <a class="button" href="{html.escape(chart_url)}">打开图表</a>
     <a class="button" href="{html.escape(csv_url)}" download>下载 CSV</a>
   </div>
-  <div class="meta">{metrics_html}</div>
+  {meta_html}
 </article>
 """
 
@@ -580,7 +589,12 @@ def write_index(config: dict, generated: dict, selected_ids: set[str]) -> None:
         if category["id"] in {"intraday-analysis", "other-markets", "global-rates"}:
             home_cards.append(category_card(category, category_charts))
         else:
-            home_cards.append("".join(chart_card(chart, category, generated) for chart in category_charts))
+            home_cards.append(
+                "".join(
+                    chart_card(chart, category, generated, show_metrics=False, show_description=False)
+                    for chart in category_charts
+                )
+            )
 
     body = f"""
 <div class="top home-top">

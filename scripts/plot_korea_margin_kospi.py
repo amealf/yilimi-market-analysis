@@ -502,6 +502,14 @@ const P=__PAYLOAD__;const rows=P.data.map((d,i)=>({i,date:d[0],f:d[1],k:d[2],kr:
         "peak:true,notes:",
         "peak:false,notes:",
     )
+    html = html.replace(
+        'tip=document.getElementById("tip");const colors=',
+        'tip=document.getElementById("tip"),isEmbed=new URLSearchParams(location.search).get("embed")==="1";const colors=',
+    )
+    html = html.replace(
+        '},{key:"notes",color:"#94a3b8",label:"文字注释"}];ctx.font=',
+        '},{key:"notes",color:"#94a3b8",label:"文字注释"}].filter(item=>!isEmbed||visible[item.key]);ctx.font=',
+    )
     weekday_tooltip_patch = """
 <script>
 function dayLabel(date){return `${date}（${"日一二三四五六"[new Date(`${date}T00:00:00Z`).getUTCDay()]}）`}
