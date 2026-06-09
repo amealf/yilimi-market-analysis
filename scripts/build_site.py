@@ -393,7 +393,7 @@ def render_page(title: str, body: str) -> str:
       position: relative;
       display: block;
       margin: 10px 0 0;
-      aspect-ratio: 16 / 9;
+      aspect-ratio: 4 / 3;
       overflow: hidden;
       border: 1px solid #d7e0e8;
       border-radius: 6px;

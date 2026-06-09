@@ -1253,8 +1253,8 @@ function drawEvents(activeEventDate=null){
 function draw(active,eventDate=null){
   refreshRows();
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035),compactHeader=w<760;
-  const axisLeft=76,axisRight=86,titleY=outer+14,legendY=outer+(compactHeader?116:46),xLabelGap=isEmbed?35:38;
-  const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+(compactHeader?230:82),y1=h-outer-xLabelGap;
+  const axisLeft=76,axisRight=86,titleY=outer+14,legendY=outer+(compactHeader?(isEmbed?56:116):46),xLabelGap=isEmbed?32:38;
+  const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+(compactHeader?(isEmbed?136:230):(isEmbed?76:82)),y1=h-outer-xLabelGap;
   const [t0,t1]=currentRange(),sample=visibleRows();
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample),ratioPad=Math.max((ratioMax0-ratioMin0)*.12,8);
   const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable","btcEtfFlow"]),sample);
@@ -1274,13 +1274,14 @@ function draw(active,eventDate=null){
   const periodWidth=170,scaleWidth=82,modeWidth=74,controlY=compactHeader?titleY+18:titleY-18;
   let periodX=x1-periodWidth,scaleX=periodX-scaleWidth-10,modeX=scaleX-modeWidth-10,periodY=controlY;
   if(compactHeader){modeX=x0;scaleX=x1-scaleWidth;periodX=x0;periodY=controlY+30}
-  drawLegend(x0,legendY,x1);drawModeTabs(modeX,controlY);drawScaleTabs(scaleX,controlY);drawPeriodTabs(periodX,periodY);
+  drawLegend(x0,legendY,x1);
+  if(isEmbed){modeBoxes=[];scaleBoxes=[];periodBoxes=[]}else{drawModeTabs(modeX,controlY);drawScaleTabs(scaleX,controlY);drawPeriodTabs(periodX,periodY)}
   const startYear=new Date(box.t0).getUTCFullYear(),endYear=new Date(box.t1).getUTCFullYear();
   for(let year=startYear;year<=endYear;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);if(priceMode==="candle"){["btc","eth","sol","bnb"].forEach(drawCandles)}ctx.restore();
-  drawEvents(eventDate);
+  if(isEmbed){eventBoxes=[]}else{drawEvents(eventDate)}
   ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText(valueScale==="log"?tr("axisLog"):tr("axisPct"),0,0);ctx.restore();
   ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText(tr("axisSupply"),0,0);ctx.restore();
   if(active!=null){const r=rows[active],x=xScale(r.t);ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.62)";ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);series.forEach(item=>{if(priceMode==="candle"&&item.kind==="candle")return;const v=plotValue(item,r);if(hidden[item.key]||v==null)return;ctx.fillStyle="#fff";ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,yFor(item,v),3.3,0,Math.PI*2);ctx.fill();ctx.stroke()})}
