@@ -27,7 +27,11 @@ MAX_CACHE_STALENESS_DAYS = 3
 PRICE_SOURCE = "https://min-api.cryptocompare.com/data/v2/histoday"
 STABLECOIN_SOURCE = "https://stablecoins.llama.fi/stablecoincharts/all"
 FRED_CSV_SOURCE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
-FRED_DGS2_FALLBACK_CSV_SOURCE = "https://eco3min.fr/dataset/us-2y-treasury-yield.csv"
+FED_H15_TREASURY_CSV_SOURCE = (
+    "https://www.federalreserve.gov/datadownload/Output.aspx?"
+    "rel=H15&series=bf17364827e38702b42a58cf8eaa3f78&lastobs=&from=&to=&filetype=csv&"
+    "label=include&layout=seriescolumn&type=package"
+)
 FARSIDE_BTC_ETF_FLOW_SOURCE = "https://r.jina.ai/http://r.jina.ai/http://https://farside.co.uk/bitcoin-etf-flow-all-data/"
 PRICE_SYMBOLS = ["BTC", "ETH", "SOL", "BNB"]
 MARKET_EVENTS = [
@@ -225,7 +229,7 @@ DATA_EXPLANATION_ZH_MD = """# USDT发行量 与 BTC/ETH
 
 ## 用途
 
-这张图用于同时观察加密资产价格、稳定币规模、BTC ETF资金、美国2Y利率和关键事件。它适合看资金环境和价格节奏是否同向，也适合发现背离。事件只用于辅助理解，不能单独当成因果结论。
+这张图用于同时观察加密资产价格、稳定币规模、BTC ETF资金、美国1Y利率和关键事件。它适合看资金环境和价格节奏是否同向，也适合发现背离。事件只用于辅助理解，不能单独当成因果结论。
 
 ## 价格与比值
 
@@ -247,11 +251,11 @@ BTC ETF累计净流入显示美国现货 BTC ETF每日净流入的累计值，�
 
 ETF资金和稳定币资金属于不同入口。稳定币偏链上和交易所资金环境，ETF偏传统金融账户资金环境。两者同向时，资金信号更一致；两者背离时，需要结合价格和利率一起看。
 
-## 美国2Y利率
+## 美国1Y利率
 
-美国2Y利率默认隐藏。它常用于观察市场对Fed政策利率路径的预期。
+美国1Y利率默认隐藏。它常用于观察短端美元利率和Fed政策利率路径的变化。
 
-2Y利率上行时，风险资产通常面临估值压力；2Y利率下行时，市场可能在定价货币环境放松，也可能在定价增长压力。需要结合价格和资金同时判断。
+1Y利率上行时，风险资产通常面临短端利率压力；1Y利率下行时，市场可能在定价货币环境放松，也可能在定价增长压力。需要结合价格和资金同时判断。
 
 ## 事件
 
@@ -268,7 +272,7 @@ DATA_EXPLANATION_EN_MD = """# USDT Supply and BTC/ETH
 
 ## Purpose
 
-This chart brings together crypto prices, stablecoin supply, BTC ETF flows, the US 2Y yield, and key events. It helps compare price action with the funding backdrop and spot divergences. Event markers add context, but they should not be read as standalone causal proof.
+This chart brings together crypto prices, stablecoin supply, BTC ETF flows, the US 1Y yield, and key events. It helps compare price action with the funding backdrop and spot divergences. Event markers add context, but they should not be read as standalone causal proof.
 
 ## Prices and Ratio
 
@@ -290,11 +294,11 @@ BTC ETF cumulative net inflow tracks cumulative daily net inflow into US spot BT
 
 ETF money and stablecoin money enter the market through different channels. Stablecoins reflect on-chain and exchange funding conditions, while ETFs reflect traditional-account access to BTC. When both move together, the funding signal is more aligned; when they diverge, price and rates need extra attention.
 
-## US 2Y Yield
+## US 1Y Yield
 
-The US 2Y yield is hidden by default. It is often used to read market expectations for the Fed policy-rate path.
+The US 1Y yield is hidden by default. It is often used to read front-end dollar rates and the Fed policy-rate path.
 
-When the 2Y yield rises, risk assets usually face valuation pressure. When it falls, the market may be pricing easier monetary conditions or weaker growth. Price, flows, and rates should be read together.
+When the 1Y yield rises, risk assets usually face front-end rate pressure. When it falls, the market may be pricing easier monetary conditions or weaker growth. Price, flows, and rates should be read together.
 
 ## Events
 
@@ -431,15 +435,18 @@ def fetch_stablecoin_supply(stablecoin_id: int, column: str, start: date, end: d
 
 def fetch_fred_rate(series_id: str, column: str, start: date, end: date) -> pd.Series:
     try:
-        text = request_text(f"{FRED_CSV_SOURCE}?{urlencode({'id': series_id})}", retries=1, pause=0.2, timeout=8)
+        text = request_text(f"{FRED_CSV_SOURCE}?{urlencode({'id': series_id})}", retries=3, pause=0.35, timeout=20)
     except Exception:
-        if series_id != "DGS2":
+        if series_id != "DGS1":
             raise
-        text = request_text(FRED_DGS2_FALLBACK_CSV_SOURCE, retries=2, pause=0.2, timeout=12)
-        frame = pd.read_csv(StringIO(text), parse_dates=["date"]).rename(columns={"yield_2y": column})
+        text = request_text(FED_H15_TREASURY_CSV_SOURCE, retries=3, pause=0.35, timeout=20)
+        frame = pd.read_csv(StringIO(text), skiprows=5)
+        frame = frame.rename(columns={"Time Period": "date", "RIFLGFCY01_N.B": column})
+        frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
-        mask = (frame["date"].dt.date >= start) & (frame["date"].dt.date <= end)
-        return frame.loc[mask].set_index("date")[column]
+        frame = frame.dropna(subset=["date"])
+        frame = frame.loc[(frame["date"] >= pd.Timestamp(start)) & (frame["date"] <= pd.Timestamp(end)), ["date", column]]
+        return frame.drop_duplicates("date").sort_values("date").set_index("date")[column]
     frame = pd.read_csv(StringIO(text), parse_dates=["observation_date"])
     frame = frame.rename(columns={"observation_date": "date", series_id: column})
     frame[column] = pd.to_numeric(frame[column], errors="coerce")
@@ -505,7 +512,7 @@ def fetch_btc_etf_total_flow(start: date, end: date) -> pd.Series:
 
 
 def normalize_optional_macro_columns(data: pd.DataFrame) -> None:
-    for column in ["us_2y"]:
+    for column in ["us_1y"]:
         if column not in data.columns:
             data[column] = pd.NA
         data[column] = pd.to_numeric(data[column], errors="coerce").ffill()
@@ -541,9 +548,9 @@ def add_btc_eth_ratio(data: pd.DataFrame) -> None:
 
 
 def fetch_optional_macro_series() -> dict[str, pd.Series | None]:
-    series: dict[str, pd.Series | None] = {"us_2y": None}
+    series: dict[str, pd.Series | None] = {"us_1y": None}
     try:
-        series["us_2y"] = fetch_fred_rate("DGS2", "us_2y", START_DATE, END_DATE)
+        series["us_1y"] = fetch_fred_rate("DGS1", "us_1y", START_DATE, END_DATE)
     except Exception:
         pass
     return series
@@ -612,12 +619,16 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
             if "stable_b" not in cached.columns:
                 cached["stable_b"] = cached[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
             normalize_optional_macro_columns(cached)
+            for column, macro in fetch_optional_macro_series().items():
+                if macro is not None:
+                    cached[column] = pd.to_datetime(cached["date"]).map(macro)
+            normalize_optional_macro_columns(cached)
             normalize_btc_etf_flow_column(cached)
             normalize_price_columns(cached)
             normalize_price_ohlc_columns(cached)
             add_btc_eth_ratio(cached)
             add_usdt_indicators(cached)
-            return cached.drop(columns=["dxy", "us_rate"], errors="ignore")
+            return cached.drop(columns=["dxy", "us_rate", "us_2y"], errors="ignore")
         raise
 
     macro_series = fetch_optional_macro_series()
@@ -931,7 +942,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
                 "usdt": series_value(row.usdt_b, 4),
                 "usdc": series_value(row.usdc_b, 4),
                 "stable": series_value(row.stable_b, 4),
-                "us2y": series_value(row.us_2y, 4),
+                "us1y": series_value(row.us_1y, 4),
                 "btcEtfFlow": series_value(row.btc_etf_flow, 2),
                 "transmissionWeek": series_value(row.transmission_week, 4),
                 "transmissionMonth": series_value(row.transmission_month, 4),
@@ -988,12 +999,12 @@ const homeLink=document.getElementById("homeLink");
 const langSwitch=document.getElementById("langSwitch");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleDownAlpha:.42,usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us2y:"rgba(248,113,113,.82)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleDownAlpha:.42,usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us1y:"rgba(248,113,113,.62)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const params=new URLSearchParams(location.search);
 let lang=params.get("lang")==="en"?"en":"zh";
 const text={
-  zh:{title:"USDT发行量 与 BTC/ETH",refresh:"刷新时间",sources:"数据来源",explain:"数据解释",home:"返回主页",axisPct:"价格与BTC/ETH比值（起点=0%）",axisLog:"价格与BTC/ETH比值（对数变化）",axisSupply:"USDT / USDC / ETF累计净流入（$B）",time:"时间",type:"类型",open:"开",high:"高",low:"低",close:"收",period_day:"日",period_week:"周",period_month:"月",period_quarter:"季",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH比值",series_usdt:"USDT发行量",series_usdc:"USDC发行量",series_stable:"USDT+USDC",series_btcEtfFlow:"BTC ETF累计净流入",series_us2y:"美国2Y利率",dataSources:"CryptoCompare、DefiLlama、FRED、Farside Investors"},
-  en:{title:"USDT Supply and BTC/ETH",refresh:"Refresh",sources:"Sources",explain:"Data notes",home:"Home",axisPct:"Price and BTC/ETH ratio (start = 0%)",axisLog:"Price and BTC/ETH ratio (log change)",axisSupply:"USDT / USDC / ETF cumulative net inflow ($B)",time:"Time",type:"Type",open:"O",high:"H",low:"L",close:"C",period_day:"D",period_week:"W",period_month:"M",period_quarter:"Q",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH ratio",series_usdt:"USDT supply",series_usdc:"USDC supply",series_stable:"USDT+USDC",series_btcEtfFlow:"Spot BTC ETF cum. net inflow",series_us2y:"US 2Y yield",dataSources:"CryptoCompare, DefiLlama, FRED, Farside Investors"}
+  zh:{title:"USDT发行量 与 BTC/ETH",refresh:"刷新时间",sources:"数据来源",explain:"数据解释",home:"返回主页",axisPct:"价格与BTC/ETH比值（起点=0%）",axisLog:"价格与BTC/ETH比值（对数变化）",axisSupply:"USDT / USDC / ETF累计净流入（$B）",time:"时间",type:"类型",open:"开",high:"高",low:"低",close:"收",period_day:"日",period_week:"周",period_month:"月",period_quarter:"季",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH比值",series_usdt:"USDT发行量",series_usdc:"USDC发行量",series_stable:"USDT+USDC",series_btcEtfFlow:"BTC ETF累计净流入",series_us1y:"美国1Y利率",dataSources:"CryptoCompare、DefiLlama、FRED、Farside Investors"},
+  en:{title:"USDT Supply and BTC/ETH",refresh:"Refresh",sources:"Sources",explain:"Data notes",home:"Home",axisPct:"Price and BTC/ETH ratio (start = 0%)",axisLog:"Price and BTC/ETH ratio (log change)",axisSupply:"USDT / USDC / ETF cumulative net inflow ($B)",time:"Time",type:"Type",open:"O",high:"H",low:"L",close:"C",period_day:"D",period_week:"W",period_month:"M",period_quarter:"Q",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH ratio",series_usdt:"USDT supply",series_usdc:"USDC supply",series_stable:"USDT+USDC",series_btcEtfFlow:"Spot BTC ETF cum. net inflow",series_us1y:"US 1Y yield",dataSources:"CryptoCompare, DefiLlama, FRED, Farside Investors"}
 };
 function tr(key){return text[lang]?.[key]||text.zh[key]||key}
 function colon(){return lang==="en"?":":"："}
@@ -1024,9 +1035,9 @@ const series=[
   {key:"usdc",color:colors.usdc,scale:"supply",width:1.15},
   {key:"stable",color:colors.stable,scale:"supply",width:1.1},
   {key:"btcEtfFlow",color:colors.btcEtfFlow,scale:"supply",width:1.05,valueDivisor:1000},
-  {key:"us2y",color:colors.us2y,scale:"rate",width:1.1}
+  {key:"us1y",color:colors.us1y,scale:"rate",width:1.1}
 ];
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],scaleBoxes=[],modeBoxes=[],period="day",priceMode="line",valueScale="pct",hoverPeriod=null,hoverScale=null,hoverMode=null,hidden={sol:true,bnb:true,btcEthRatio:true,usdt:true,usdc:true,us2y:true};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],scaleBoxes=[],modeBoxes=[],period="day",priceMode="line",valueScale="pct",hoverPeriod=null,hoverScale=null,hoverMode=null,hidden={sol:true,bnb:true,btcEthRatio:true,usdt:true,usdc:true,us1y:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function finite(v){return v!=null&&Number.isFinite(v)}
@@ -1187,7 +1198,7 @@ function drawAxes(){
   }
   niceTicks(box.ratioMin,box.ratioMax,6).forEach(v=>{const y=yRatio(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(axisPct(v),box.x0-9,y+4)});
   [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
-  if(!hidden.us2y)[box.rateMin,(box.rateMin+box.rateMax)/2,box.rateMax].forEach(v=>{const y=yRate(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.us2y;ctx.textAlign="left";ctx.fillText(ratePct(v),box.x1+68,y+4)});
+  if(!hidden.us1y)[box.rateMin,(box.rateMin+box.rateMax)/2,box.rateMax].forEach(v=>{const y=yRate(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.us1y;ctx.textAlign="left";ctx.fillText(ratePct(v),box.x1+68,y+4)});
 }
 function drawCandles(key){
   if(hidden[key])return;
@@ -1247,7 +1258,7 @@ function draw(active,eventDate=null){
   const [t0,t1]=currentRange(),sample=visibleRows();
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample),ratioPad=Math.max((ratioMax0-ratioMin0)*.12,8);
   const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable","btcEtfFlow"]),sample);
-  const [rateMin0,rateMax0]=extent(activeKeys("rate",["us2y"]),sample),ratePad=Math.max((rateMax0-rateMin0)*.18,.15);
+  const [rateMin0,rateMax0]=extent(activeKeys("rate",["us1y"]),sample),ratePad=Math.max((rateMax0-rateMin0)*.18,.15);
   let ratioMin=Math.min(ratioMin0-ratioPad,0),ratioMax=Math.max(ratioMax0+ratioPad,10);
   const zeroFloorFraction=.16,ratioFloorMin=-(zeroFloorFraction*ratioMax)/(1-zeroFloorFraction);
   ratioMin=Math.min(ratioMin,ratioFloorMin);
