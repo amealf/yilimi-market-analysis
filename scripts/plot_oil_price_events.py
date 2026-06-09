@@ -541,7 +541,7 @@ const marketStyle={
   brent:{stroke:"rgba(31,119,180,.52)",upFill:"rgba(255,255,255,.90)",downFill:"rgba(31,119,180,.42)"}
 };
 const startOptions=[["2026-01-01","2026"],["2025-01-01","2025"],["2024-01-01","2024"],["2023-01-01","2023"]];
-let period="day",rows=periodDefs.day.rows,box={},zoom=null,drag=null,eventBoxes=[],startBoxes=[],marketBoxes=[],periodBoxes=[],viewStart="2026-01-01",hoverStart=null,hidden={brent:true};
+let period="m30",rows=periodDefs.m30.rows,box={},zoom=null,drag=null,eventBoxes=[],startBoxes=[],marketBoxes=[],periodBoxes=[],viewStart="2026-01-01",hoverStart=null,hidden={brent:true};
 function eventExactTime(e){const m=String(e.dateLabel||"").match(/^(\\d{4})-(\\d{2})-(\\d{2})\\s+(\\d{2}):(\\d{2})/);if(m)return Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);return new Date(`${e.date}T00:00:00Z`).getTime()}
 function refreshRows(){rows=periodDefs[period].rows||[]}
 function weekChar(t){return "日一二三四五六"[new Date(t).getUTCDay()]}
@@ -622,7 +622,7 @@ function marketLines(r){return visibleMarkets().map(m=>`${m.label} K线：${valu
 function showTip(p){
   if(!inPlot(p)){tip.style.display="none";draw();return}
   const eventHit=hitEvent(p);
-  if(eventHit){const e=eventHit.event,key=eventHit.key,t=eventTime(e);draw(null,key);const x=xScale(t);ctx.setLineDash([4,5]);ctx.strokeStyle=eventColor(e.score,.42);ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);const slot=period==="m30"?`<br>30分钟格：${timeText(e.m30T)}`:"";tip.className="tip";tip.innerHTML=`<b>${e.label}</b><br>时间：${e.dateLabel}${slot}<br>类型：${e.type}<br>${e.description}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-330,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-210,p.y-96))+"px";return}
+  if(eventHit){const e=eventHit.event,key=eventHit.key,t=eventTime(e);draw(null,key);const x=xScale(t);ctx.setLineDash([4,5]);ctx.strokeStyle=eventColor(e.score,.42);ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);tip.className="tip";tip.innerHTML=`<b>${e.label}</b><br>事件发生时间：${e.dateLabel}<br>类型：${e.type}<br>${e.description}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-330,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-210,p.y-96))+"px";return}
   const i=nearest(p.x);if(i==null){tip.style.display="none";draw();return}const r=rows[i];draw(i);
   tip.className="tip";tip.innerHTML=`<b>${rowLabel(r)}</b><br>${marketLines(r)}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-340,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
 }
