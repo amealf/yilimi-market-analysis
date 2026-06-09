@@ -14,20 +14,22 @@ TRADINGVIEW_SOCKET_URL = "wss://data.tradingview.com/socket.io/websocket"
 
 
 def fetch(market: dict, config: dict | None = None) -> pd.DataFrame:
-    bar_count = int(((config or {}).get("history") or {}).get("bar_count", 5000))
+    history = (config or {}).get("history") or {}
+    bar_count = int(history.get("bar_count", 5000))
+    interval = str(history.get("interval", "1D"))
     try:
-        return asyncio.run(fetch_async(market["symbol"], bar_count))
+        return asyncio.run(fetch_async(market["symbol"], bar_count, interval))
     except RuntimeError as exc:
         if "asyncio.run" not in str(exc):
             raise
         loop = asyncio.new_event_loop()
         try:
-            return loop.run_until_complete(fetch_async(market["symbol"], bar_count))
+            return loop.run_until_complete(fetch_async(market["symbol"], bar_count, interval))
         finally:
             loop.close()
 
 
-async def fetch_async(symbol: str, bar_count: int) -> pd.DataFrame:
+async def fetch_async(symbol: str, bar_count: int, interval: str = "1D") -> pd.DataFrame:
     try:
         import websockets
     except ImportError as exc:
@@ -48,7 +50,7 @@ async def fetch_async(symbol: str, bar_count: int) -> pd.DataFrame:
             separators=(",", ":"),
         )
         await send(websocket, "resolve_symbol", [session, "symbol_1", "=" + symbol_payload])
-        await send(websocket, "create_series", [session, "s1", "s1", "symbol_1", "1D", bar_count, ""])
+        await send(websocket, "create_series", [session, "s1", "s1", "symbol_1", interval, bar_count, ""])
 
         deadline = time.time() + 45
         while time.time() < deadline:
@@ -105,6 +107,7 @@ def parse_timescale_update(payload: dict) -> pd.DataFrame:
         rows.append(
             {
                 "date": trade_date,
+                "timestamp": timestamp,
                 "open": values[1],
                 "high": values[2],
                 "low": values[3],

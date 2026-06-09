@@ -169,7 +169,18 @@ def build_oil_price_events(chart: dict) -> dict:
 
     source_cache_path = ROOT / chart["output_csv"]
     data = module.build_price_frame(cache_path=source_cache_path if source_cache_path.exists() else csv_path)
-    data.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    daily_data = data["day"] if isinstance(data, dict) else data
+    daily_data.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    source_cache_path.parent.mkdir(parents=True, exist_ok=True)
+    daily_data.to_csv(source_cache_path, index=False, encoding="utf-8-sig")
+    if isinstance(data, dict) and "m30" in data:
+        intraday_data = data["m30"]
+        intraday_csv_path = csv_path.with_name(f"{csv_path.stem}-30m{csv_path.suffix}")
+        intraday_cache_path = source_cache_path.with_name(
+            f"{source_cache_path.stem}-30m{source_cache_path.suffix}"
+        )
+        intraday_data.to_csv(intraday_csv_path, index=False, encoding="utf-8-sig")
+        intraday_data.to_csv(intraday_cache_path, index=False, encoding="utf-8-sig")
     module.write_interactive_html(data, html_path)
     return module.chart_meta(data)
 
