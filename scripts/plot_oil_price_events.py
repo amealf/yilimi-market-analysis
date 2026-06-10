@@ -679,7 +679,7 @@ def chart_meta(data: dict[str, pd.DataFrame] | pd.DataFrame) -> dict:
     return {
         "latestDate": max(latest_dates).strftime("%Y-%m-%d"),
         "metrics": metrics,
-        "dataNote": "默认显示WTI与各方事件；Brent可点选开启。日线按自然日铺开，30分钟按UTC时间铺开且最多显示6个月，周末、盘外和无交易时段保留空值。",
+        "dataNote": "默认显示Brent与各方事件；WTI可点选开启。日线按自然日铺开，30分钟按UTC时间铺开且最多显示6个月，周末、盘外和无交易时段保留空值。",
     }
 
 
@@ -751,7 +751,7 @@ def write_interactive_html(data: dict[str, pd.DataFrame] | pd.DataFrame, output_
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <script>if(new URLSearchParams(location.search).get("embed")==="1")document.documentElement.classList.add("is-embed");</script>
-  <title>WTI/Brent 原油价格与事件</title>
+  <title>Brent 原油价格与事件</title>
   <style>
     html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#fff;color:#17202a;font-family:"Microsoft YaHei",Arial,sans-serif}
     .page{position:relative;width:100vw;height:100vh;background:#fff}
@@ -788,7 +788,7 @@ const marketStyle={
   brent:{stroke:"rgba(31,119,180,.52)",upFill:"rgba(255,255,255,.90)",downFill:"rgba(31,119,180,.42)"}
 };
 const startOptions=[["2020-03-11","Covid"],["2022-02-24","俄乌战争"],["2026-02-28","伊朗战争"],["2026-01-01","2026"]];
-let period="m30",eventMode="party",rows=periodDefs.m30.rows,box={},zoom=null,drag=null,eventBoxes=[],startBoxes=[],marketBoxes=[],periodBoxes=[],eventModeBoxes=[],viewStart="2026-01-01",hoverStart=null,hidden={brent:true};
+let period="m30",eventMode="party",rows=periodDefs.m30.rows,box={},zoom=null,drag=null,eventBoxes=[],startBoxes=[],marketBoxes=[],periodBoxes=[],eventModeBoxes=[],viewStart="2026-01-01",hoverStart=null,hidden={wti:true};
 function eventExactTime(e){const m=String(e.dateLabel||"").match(/^(\\d{4})-(\\d{2})-(\\d{2})\\s+(\\d{2}):(\\d{2})/);if(m)return Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);return new Date(`${e.date}T00:00:00Z`).getTime()}
 function normalizeEvent(e,mode){const exact=eventExactTime(e),dayT=new Date(`${e.date}T00:00:00Z`).getTime();return{...e,mode,exactT:exact,dayT,m30T:Math.floor(exact/SLOT30)*SLOT30}}
 function refreshRows(){rows=periodDefs[period].rows||[]}
@@ -847,7 +847,7 @@ function draw(active,eventActiveKey=null){
   box.baseOpen=visibleBaseOpen();
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   const titleSize=isEmbed&&w<760?18:21;
-  ctx.fillStyle=colors.text;ctx.font=`700 ${titleSize}px Microsoft YaHei,Arial`;ctx.textAlign="center";ctx.fillText("WTI/Brent 原油价格与事件",w/2,titleY);
+  ctx.fillStyle=colors.text;ctx.font=`700 ${titleSize}px Microsoft YaHei,Arial`;ctx.textAlign="center";ctx.fillText("Brent 原油价格与事件",w/2,titleY);
   const marketEnd=drawMarketTabs(x0,controlY);
   const eventModeEnd=drawEventModeTabs(marketEnd+16,controlY);
   drawPeriodTabs(eventModeEnd+16,controlY);
