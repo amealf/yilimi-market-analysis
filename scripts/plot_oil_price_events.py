@@ -13,9 +13,10 @@ from mobile_chart_support import add_canvas_mobile_support
 
 
 ROOT = Path(__file__).resolve().parents[1]
-START_DATE = date(2023, 1, 1)
+START_DATE = date(2020, 1, 1)
 END_DATE = date.today()
 DISPLAY_START = pd.Timestamp("2026-01-01")
+INTRADAY_DISPLAY_MONTHS = 6
 BAR_COUNT = 7000
 INTRADAY_BAR_COUNT = 12000
 INTRADAY_INTERVAL = "30"
@@ -262,6 +263,242 @@ OIL_EVENTS: list[dict[str, str]] = [
         "description": "川普指责伊朗在霍尔木兹附近击落一架美国陆军Apache直升机，并表示美国必须回应；两名机组人员获救且未受伤，事件进一步压迫停火谈判。",
     },
 ]
+PARTY_EVENTS: list[dict[str, str]] = [
+    {
+        "date": "2026-02-28",
+        "dateLabel": "2026-02-28 07:37 UTC",
+        "label": "开战/斩首与核导设施打击",
+        "actor": "美国、以色列",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜美以对伊朗发动大规模打击，伊朗最高领袖哈梅内伊死亡，伊朗防长和革命卫队高层等被报死亡；特朗普称轰炸会继续，以色列称打击了大量伊朗目标。回应｜伊朗称袭击非法，随后向以色列及海湾美军相关国家发射导弹。盘面｜周末油盘未完整交易，但市场评论已提到部分油企和贸易商暂停经霍尔木兹海峡运输。",
+    },
+    {
+        "date": "2026-02-28",
+        "dateLabel": "2026-02-28 11:31 UTC",
+        "label": "区域报复/海湾导弹袭击",
+        "actor": "伊朗",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜伊朗向多个海湾城市发射导弹，阿联酋、卡塔尔、科威特、巴林等均有拦截，阿联酋报道一人死亡。回应｜海湾国家启动防空，约旦也拦截导弹；伊朗称会继续打击直至敌人被击败。盘面｜战争从伊朗本土扩展到海湾美军基地和能源运输周边。",
+    },
+    {
+        "date": "2026-03-01",
+        "dateLabel": "2026-03-01 23:19 UTC",
+        "label": "霍尔木兹威胁/区域能源停产",
+        "actor": "伊朗",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜伊朗革命卫队威胁焚毁试图通过霍尔木兹海峡的船只；沙特和卡塔尔出现能源设施关闭，数百艘船在海湾周边等待。回应｜航运和能源企业开始把通道中断纳入报价。盘面｜战争后第一轮明确的油价风险溢价重估。",
+    },
+    {
+        "date": "2026-03-10",
+        "dateLabel": "2026-03-10 03:34 UTC",
+        "label": "空袭强度升级",
+        "actor": "美国、以色列",
+        "kind": "消息",
+        "intensity": "中高",
+        "description": "事件｜美以对伊朗进行开战以来强度很高的一轮空袭，伊朗革命卫队威胁在美以攻击停止前封锁海湾油运。回应｜伊朗继续向美军基地和以色列方向发射导弹。盘面｜军事升级与白宫压制战期同时定价。",
+    },
+    {
+        "date": "2026-03-19",
+        "dateLabel": "2026-03-19 01:57 UTC",
+        "label": "能源设施被纳入打击目标",
+        "actor": "以色列",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜以色列打击伊朗South Pars气田，特朗普随后称美国和卡塔尔未参与，并警告以色列不要再次攻击该区域，除非伊朗攻击卡塔尔。回应｜伊朗打击卡塔尔Ras Laffan、沙特天然气设施、Yanbu的SAMREF炼厂及科威特Mina al-Ahmadi炼厂。盘面｜能源设施风险可以瞬间推升油价，但政策干预预期会造成快速回吐。",
+    },
+    {
+        "date": "2026-03-19",
+        "dateLabel": "2026-03-19 21:58 UTC",
+        "label": "美国增兵/地面与油港风险",
+        "actor": "美国",
+        "kind": "消息",
+        "intensity": "中高",
+        "description": "事件｜美国准备向中东部署约2500名海军陆战队员和USS Boxer两栖攻击舰，消息同时提到美国可能研究伊朗海岸或Kharg Island油港目标。回应｜盟友对参与打通霍尔木兹设置停火前提，美国提出允许出售被困油轮上的伊朗原油以增加供应。盘面｜油港或地面行动风险升温，但美国增供信号带来双向定价。",
+    },
+    {
+        "date": "2026-03-22",
+        "dateLabel": "2026-03-22 10:53 UTC",
+        "label": "电网最后通牒/海湾能源与水设施威胁",
+        "actor": "美国",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜特朗普威胁在48小时内打击伊朗电网；伊朗回应称，美国若打击伊朗电力系统，伊朗会报复海湾邻国的能源和供水系统。回应｜伊朗称海峡对所有人开放，但对「敌人」例外；以色列继续遭遇空袭警报。盘面｜民用基础设施链条是否纳入打击清单成为核心风险。",
+    },
+    {
+        "date": "2026-03-23",
+        "dateLabel": "2026-03-23 11:05 UTC",
+        "label": "美国推迟打击伊朗能源基础设施",
+        "actor": "美国",
+        "kind": "官方帖文",
+        "intensity": "高",
+        "description": "事件｜特朗普在Truth Social发文，把对伊朗能源基础设施的打击推迟五天，称美伊有建设性对话；伊朗否认直接谈判。回应｜中间人包括埃及、巴基斯坦和海湾国家继续传话。盘面｜典型的「美国暂停升级」headline，方向偏空油价。",
+    },
+    {
+        "date": "2026-03-27",
+        "dateLabel": "2026-03-27 01:12 UTC",
+        "label": "霍尔木兹期限延长/Kharg油港预期",
+        "actor": "美国",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜特朗普延长要求伊朗重开霍尔木兹的期限，同时增兵中东，并研究是否动用地面力量夺取Kharg Island油港。回应｜伊朗方面认为美方方案片面且不公平。盘面｜交易员降低对停火的信任度，把战争持续时间重新加进价格。",
+    },
+    {
+        "date": "2026-03-31",
+        "dateLabel": "2026-03-31 02:34 UTC",
+        "label": "油轮打击/美国企业威胁",
+        "actor": "伊朗",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜伊朗此前打击迪拜外海一艘满载油轮并导致起火，革命卫队随后威胁打击中东地区美国企业利益。回应｜美国防长称未来数日是关键时刻，白宫称美军准备阻止袭击。盘面｜油轮袭击与停火传闻同时交易，方向杂乱。",
+    },
+    {
+        "date": "2026-04-02",
+        "dateLabel": "2026-04-02 00:29 UTC",
+        "label": "美国承诺继续打击/升级预期",
+        "actor": "美国",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜特朗普称美国会继续攻击伊朗，并会在未来两到三周加大打击强度；同时未给出霍尔木兹重开时间表。回应｜伊朗仍在研究通过阿曼监控海峡交通的方案，海峡事实上仍受限。盘面｜市场开始按供应中断时间延长交易。",
+    },
+    {
+        "date": "2026-04-08",
+        "dateLabel": "2026-04-08 00:00 UTC",
+        "label": "美国对霍尔木兹最后期限",
+        "actor": "美国",
+        "kind": "截止点",
+        "intensity": "中高",
+        "description": "事件｜特朗普给伊朗设定期限，要求结束海湾油运封锁，否则美国将摧毁伊朗桥梁和电厂。回应｜伊朗称会报复美国海湾盟友；当日对伊朗打击加剧，涉及桥梁、机场、石化厂和电力线。盘面｜供应紧张支撑近端合约，宏观需求担忧压制远端。",
+    },
+    {
+        "date": "2026-04-17",
+        "dateLabel": "2026-04-17 01:02 UTC",
+        "label": "伊朗宣布商业船可通行霍尔木兹",
+        "actor": "伊朗",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜伊朗称剩余停火期内所有商业船只可通过霍尔木兹，但需与革命卫队协调；特朗普称伊朗同意以后不再关闭海峡。回应｜美国对伊朗港口的军事封锁仍在。盘面｜海峡风险溢价快速拆除，方向偏空油价。",
+    },
+    {
+        "date": "2026-04-19",
+        "dateLabel": "2026-04-19 22:10 UTC",
+        "label": "美国海上扣船/封锁摩擦",
+        "actor": "美国",
+        "kind": "消息",
+        "intensity": "中高",
+        "description": "事件｜美国扣押一艘试图突破封锁的伊朗货船。回应｜伊朗称会报复，霍尔木兹交通接近停摆，停火续期前景受质疑。盘面｜停火信用受损、海峡恢复延后的信号，方向偏多油价。",
+    },
+    {
+        "date": "2026-04-30",
+        "dateLabel": "2026-04-30 12:52 UTC",
+        "label": "美国可能采取军事行动打破僵局",
+        "actor": "美国",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜报道称美国考虑采取军事行动以打破美伊谈判僵局，霍尔木兹仍关闭，供应扰动持续。回应｜市场等待是否会出现新一轮对港口、海峡或能源设施的打击。盘面｜盘中高点和收盘背离很大，高位headline容易被获利了结和政策干预预期冲掉。",
+    },
+    {
+        "date": "2026-04-30",
+        "dateLabel": "2026-04-30 22:39 UTC",
+        "label": "伊朗递交谈判提案",
+        "actor": "伊朗",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜伊朗把新的对美谈判提案递交给巴基斯坦中间人。回应｜阿联酋仍质疑伊朗对霍尔木兹安排的可信度，市场也未完全解除海峡风险。盘面｜同一天内从「美方军事行动风险」切到「伊方谈判出口」的快速反转。",
+    },
+    {
+        "date": "2026-05-05",
+        "dateLabel": "2026-05-05 23:11 UTC",
+        "label": "美国方案/伊朗审阅和平备忘录",
+        "actor": "美国",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜报道称美伊接近一页式初步和平备忘录，伊朗正在审阅美国方案，并将通过巴基斯坦回复。回应｜伊朗仍称只接受公平全面的协议，特朗普又称面对面谈判为时尚早。盘面｜海峡重开概率被重新估计，方向偏空油价。",
+    },
+    {
+        "date": "2026-05-18",
+        "dateLabel": "2026-05-18 22:23 UTC",
+        "label": "美国暂缓次日打击",
+        "actor": "美国",
+        "kind": "消息",
+        "intensity": "中高",
+        "description": "事件｜特朗普称推迟原定周二恢复的军事打击，副总统Vance称美伊谈判有进展；伊朗诉求包括解除制裁、释放资金和结束美国封锁。回应｜双方仍保留恢复军事行动的选项。盘面｜方向偏空油价但跌幅有限。",
+    },
+    {
+        "date": "2026-05-27",
+        "dateLabel": "2026-05-27 23:34 UTC",
+        "label": "Bandar Abbas后续交火/停火延长同场",
+        "actor": "美国",
+        "kind": "消息",
+        "intensity": "中",
+        "description": "事件｜美方先攻击Bandar Abbas，伊朗革命卫队随后称打击美军基地；同一轮消息又称美伊已达成延长60天停火的协议，但仍待特朗普批准。回应｜伊朗Tasnim称潜在备忘录文本尚未最终确认。盘面｜军事交火和停火延长两条线同时交易，方向非常摇摆。",
+    },
+    {
+        "date": "2026-05-31",
+        "dateLabel": "2026-05-31 22:26 UTC",
+        "label": "谈判中断/双海峡封锁威胁",
+        "actor": "伊朗",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜伊朗Tasnim称德黑兰停止与美国的间接信息交换，并计划与盟友全面封锁霍尔木兹海峡，还可能扰动其他关键航道。回应｜以色列命令部队进一步进入黎巴嫩；特朗普称不了解伊朗谈判中断。盘面｜焦点从单一霍尔木兹转向「霍尔木兹+曼德」组合风险。",
+    },
+    {
+        "date": "2026-06-03",
+        "dateLabel": "2026-06-03 00:36 UTC",
+        "label": "伊朗导弹打向科威特、巴林",
+        "actor": "伊朗",
+        "kind": "消息",
+        "intensity": "中高",
+        "description": "事件｜伊朗向科威特和巴林方向发射弹道导弹，科威特方面称有人员伤亡；美军随后打击伊朗Qeshm Island。回应｜伊朗外长称与华盛顿接触未完全切断，但谈判没有进展。盘面｜停火恶化信号，但尚未达到全面供应中断级别。",
+    },
+    {
+        "date": "2026-06-06",
+        "dateLabel": "2026-06-06 00:02 UTC",
+        "label": "霍尔木兹无人机与雷达站打击",
+        "actor": "伊朗",
+        "kind": "消息",
+        "intensity": "中",
+        "description": "事件｜美方称伊朗向霍尔木兹方向发射无人机，美军击落后打击Goruk和Qeshm Island的伊朗监视/雷达设施。回应｜伊朗称美国破坏4月8日停火，并报复打击科威特和巴林美军基地，还向未获许可通过海峡的四艘油轮开火。盘面｜即时意义在航运通行和军舰护航风险。",
+    },
+    {
+        "date": "2026-06-07",
+        "dateLabel": "2026-06-07 22:31 UTC",
+        "label": "以黎升级引发以伊互打/石化设施目标",
+        "actor": "以色列",
+        "kind": "消息",
+        "intensity": "高",
+        "description": "事件｜整条链条按以色列周末打击贝鲁特真主党据点计；直接以伊互打环节中，伊朗周日晚向以色列发射导弹，随后以色列打击伊朗防空和一座用于生产弹道导弹的石化厂，伊朗革命卫队再打击Haifa类似设施。回应｜特朗普要求双方停止开火，伊朗和以色列随后称暂时停止互相攻击。盘面｜买升级headline，随后观察白宫是否压停。",
+    },
+    {
+        "date": "2026-06-08",
+        "dateLabel": "2026-06-08 23:00 UTC",
+        "label": "Apache直升机事件",
+        "actor": "伊朗",
+        "kind": "行动，争议",
+        "intensity": "中",
+        "description": "事件｜美方官员称一架美国Apache在阿曼近海巡逻时被伊朗单向攻击无人机击落，时间约为周一23:00 UTC；两名机组人员获救。回应｜伊朗媒体援引军方消息源否认过去24小时在霍尔木兹进行进攻性空中行动。盘面｜单看直升机事件，油价没有立刻进入供应中断定价；重要性在于触发次日美国新一轮打击。",
+    },
+    {
+        "date": "2026-06-09",
+        "dateLabel": "2026-06-09 21:00 UTC",
+        "label": "美国打击伊朗近霍尔木兹防空、控制站、雷达",
+        "actor": "美国",
+        "kind": "行动",
+        "intensity": "中",
+        "description": "事件｜美军在21:00 UTC开始打击伊朗近霍尔木兹的防空、地面控制站和监视雷达，CENTCOM在约01:00 UTC宣布行动结束。回应｜伊朗媒体称Qeshm Island和Sirik遭袭，Bandar Abbas和Jask附近有爆炸声；随后伊朗称打击美军基地和美国第五舰队。盘面｜市场视为headline风险，暂未按宏观供应冲击定价。",
+    },
+    {
+        "date": "2026-06-10",
+        "dateLabel": "2026-06-10 03:54 UTC",
+        "label": "伊朗打击美军基地与海湾目标",
+        "actor": "伊朗",
+        "kind": "消息",
+        "intensity": "中",
+        "description": "事件｜伊朗革命卫队称打击约旦al-Azraq美军基地，以及巴林、科威特等海湾目标，并称出动无人机攻击美国第五舰队。回应｜约旦称拦截5枚伊朗导弹，科威特和巴林启动防空；美方初步评估称几乎所有导弹和无人机被拦截，暂未看到美军人员或设施受损报告。盘面｜交易员等待是否有美军伤亡、是否打到能源设施、霍尔木兹是否重新进入实质关闭。",
+    },
+]
 MARKETS = [
     {
         "key": "wti",
@@ -308,7 +545,7 @@ def fetch_market(
             frame["time"] = pd.to_datetime(timestamp_source, errors="coerce", utc=True)
             frame = frame.dropna(subset=["time"]).sort_values("time")
             frame["time"] = frame["time"].dt.floor(INTRADAY_FREQ)
-            intraday_start = DISPLAY_START.tz_localize("UTC")
+            intraday_start = intraday_start_utc()
             intraday_end = pd.Timestamp.now(tz="UTC").ceil(INTRADAY_FREQ)
             frame = frame[(frame["time"] >= intraday_start) & (frame["time"] <= intraday_end)]
             frame = frame.drop_duplicates("time", keep="last")
@@ -317,6 +554,12 @@ def fetch_market(
             last_error = exc
             time.sleep(1.2 * (attempt + 1))
     raise RuntimeError(f"TradingView request failed: {market['symbol']}") from last_error
+
+
+def intraday_start_utc() -> pd.Timestamp:
+    display_start = DISPLAY_START.tz_localize("UTC")
+    six_month_start = pd.Timestamp.now(tz="UTC").normalize() - pd.DateOffset(months=INTRADAY_DISPLAY_MONTHS)
+    return max(display_start, six_month_start)
 
 
 def add_pct(data: pd.DataFrame, time_column: str, column: str, suffix: str) -> None:
@@ -389,7 +632,7 @@ def build_intraday_frame(cache_path: Path | None = None) -> pd.DataFrame:
     if not first_times:
         raise RuntimeError("Oil 30m price data is empty")
 
-    intraday_start = DISPLAY_START.tz_localize("UTC")
+    intraday_start = intraday_start_utc()
     intraday_end = max(max(frame["time"].max() for frame in frames if not frame.empty), pd.Timestamp.now(tz="UTC")).ceil(
         INTRADAY_FREQ
     )
@@ -436,7 +679,7 @@ def chart_meta(data: dict[str, pd.DataFrame] | pd.DataFrame) -> dict:
     return {
         "latestDate": max(latest_dates).strftime("%Y-%m-%d"),
         "metrics": metrics,
-        "dataNote": "默认显示WTI；Brent可点选开启。日线按自然日铺开，30分钟按UTC时间铺开，周末、盘外和无交易时段保留空值。",
+        "dataNote": "默认显示WTI与各方事件；Brent可点选开启。日线按自然日铺开，30分钟按UTC时间铺开且最多显示6个月，周末、盘外和无交易时段保留空值。",
     }
 
 
@@ -493,6 +736,7 @@ def write_interactive_html(data: dict[str, pd.DataFrame] | pd.DataFrame, output_
             "m30Rows": m30_records,
             "meta": meta,
             "events": OIL_EVENTS,
+            "partyEvents": PARTY_EVENTS,
             "generatedAt": generated_at,
             "dataSources": "TradingView、NYMEX/CME、ICE Futures Europe",
             "markets": [{"key": market["key"], "label": market["label"]} for market in MARKETS],
@@ -534,15 +778,19 @@ const periodDefs={
   day:{label:"日",rows:(P.dayRows||[]).map(r=>({...r,t:new Date(`${r.date}T00:00:00Z`).getTime()}))},
   m30:{label:"30m",rows:(P.m30Rows||[]).map(r=>({...r,t:new Date(r.time).getTime()}))}
 };
-const events=(P.events||[]).map(e=>{const exact=eventExactTime(e),dayT=new Date(`${e.date}T00:00:00Z`).getTime();return{...e,exactT:exact,dayT,m30T:Math.floor(exact/SLOT30)*SLOT30}});
+const eventSets={
+  major:(P.events||[]).map(e=>normalizeEvent(e,"major")),
+  party:(P.partyEvents||[]).map(e=>normalizeEvent(e,"party"))
+};
 const colors={text:"#111827",legend:"#374151",muted:"#4b5563",frame:"rgba(17,17,17,.48)",weekend:"rgba(148,163,184,.045)",control:"rgba(71,85,105,.42)",controlOn:"#1f77b4"};
 const marketStyle={
   wti:{stroke:"rgba(17,17,17,.59)",upFill:"rgba(255,255,255,.92)",downFill:"rgba(17,17,17,.55)"},
   brent:{stroke:"rgba(31,119,180,.52)",upFill:"rgba(255,255,255,.90)",downFill:"rgba(31,119,180,.42)"}
 };
-const startOptions=[["2026-01-01","2026"],["2025-01-01","2025"],["2024-01-01","2024"],["2023-01-01","2023"]];
-let period="m30",rows=periodDefs.m30.rows,box={},zoom=null,drag=null,eventBoxes=[],startBoxes=[],marketBoxes=[],periodBoxes=[],viewStart="2026-01-01",hoverStart=null,hidden={brent:true};
+const startOptions=[["2020-03-11","Covid"],["2022-02-24","俄乌战争"],["2026-02-28","伊朗战争"],["2026-01-01","2026"]];
+let period="m30",eventMode="party",rows=periodDefs.m30.rows,box={},zoom=null,drag=null,eventBoxes=[],startBoxes=[],marketBoxes=[],periodBoxes=[],eventModeBoxes=[],viewStart="2026-01-01",hoverStart=null,hidden={brent:true};
 function eventExactTime(e){const m=String(e.dateLabel||"").match(/^(\\d{4})-(\\d{2})-(\\d{2})\\s+(\\d{2}):(\\d{2})/);if(m)return Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);return new Date(`${e.date}T00:00:00Z`).getTime()}
+function normalizeEvent(e,mode){const exact=eventExactTime(e),dayT=new Date(`${e.date}T00:00:00Z`).getTime();return{...e,mode,exactT:exact,dayT,m30T:Math.floor(exact/SLOT30)*SLOT30}}
 function refreshRows(){rows=periodDefs[period].rows||[]}
 function weekChar(t){return "日一二三四五六"[new Date(t).getUTCDay()]}
 function dateText(t){const d=new Date(t);return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`}
@@ -550,20 +798,24 @@ function timeText(t){const d=new Date(t);return `${dateText(t)}（${weekChar(t)}
 function dayLabel(date){const t=new Date(`${date}T00:00:00Z`).getTime();return `${date}（${weekChar(t)}）`}
 function eventTime(e){return period==="m30"?e.m30T:e.dayT}
 function eventKey(e){return `${period}-${e.dateLabel||e.date}`}
+function currentEvents(){return eventSets[eventMode]||[]}
 function q(r,key){return r&&r[key]?r[key]:{}}
 function hasOhlc(r,key){const v=q(r,key);return [v.o,v.h,v.l,v.c].every(n=>n!=null&&Number.isFinite(n))}
 function visibleMarkets(fallback=true){const active=markets.filter(m=>!hidden[m.key]);return active.length?active:(fallback?[markets[0]]:[])}
 function firstMarketKey(){return visibleMarkets()[0].key}
 function displayEnd(){return (rows.length?rows[rows.length-1].t:Date.now())+DAY*5}
 function selectedStart(){return new Date(`${viewStart}T00:00:00Z`).getTime()}
-function defaultRange(){const start=rows.length?rows[0].t:Date.now();return [Math.max(start,selectedStart()),displayEnd()]}
+function earliestDisplayStart(){const start=rows.length?rows[0].t:Date.now();return period==="m30"?Math.max(start,displayEnd()-DAY*183):start}
+function defaultRange(){return [Math.max(earliestDisplayStart(),selectedStart()),displayEnd()]}
 function usd(v,d=2){return v==null?"-":"$"+Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})}
 function visibleBaseOpen(){const [t0,t1]=currentRange();for(const r of rows){if(r.t<t0||r.t>t1)continue;for(const m of visibleMarkets()){const v=q(r,m.key);if(v.o!=null&&Number.isFinite(v.o))return v.o}}return null}
 function basePct(v){return box.baseOpen&&v!=null?(v/box.baseOpen*100).toFixed(0)+"%":"-"}
 function signedPct(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"")+n.toFixed(2)+"%"}
 function valueText(r,key){const v=q(r,key);return hasOhlc(r,key)?`开 ${usd(v.o)}　高 ${usd(v.h)}　低 ${usd(v.l)}　收 ${usd(v.c)}　${signedPct(v.pct)}`:"-"}
 function priceExtent(list=rows){const a=[];const active=visibleMarkets();list.forEach(r=>active.forEach(m=>{const v=q(r,m.key);if(v.h!=null&&Number.isFinite(v.h))a.push(v.h);if(v.l!=null&&Number.isFinite(v.l))a.push(v.l)}));return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
-function eventColor(score,alpha=1){const s=Math.max(-1,Math.min(1,Number(score)||0)),hue=60+s*60,light=66-Math.abs(s)*34;return `hsla(${hue},70%,${light}%,${alpha})`}
+function majorEventColor(score,alpha=1){const s=Math.max(-1,Math.min(1,Number(score)||0)),hue=60+s*60,light=66-Math.abs(s)*34;return `hsla(${hue},70%,${light}%,${alpha})`}
+function partyEventColor(actor,alpha=1){const a=String(actor||"");let rgb=[100,116,139];if(a.includes("美国")&&a.includes("以色列"))rgb=[79,70,229];else if(a.includes("美国"))rgb=[37,99,235];else if(a.includes("以色列"))rgb=[124,58,237];else if(a.includes("伊朗"))rgb=[220,38,38];return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`}
+function eventColor(event,alpha=1){return eventMode==="party"?partyEventColor(event.actor,alpha):majorEventColor(event.score,alpha)}
 function currentRange(){return zoom||defaultRange()}
 function visibleRows(){const [t0,t1]=currentRange();const sample=rows.filter(r=>r.t>=t0&&r.t<=t1);return sample.length?sample:rows}
 function resize(){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
@@ -573,8 +825,9 @@ function roundRect(x,y,w,h,r){const rr=Math.min(r,w/2,h/2);ctx.beginPath();ctx.m
 function niceTicks(min,max,count){const span=Math.max(1e-9,max-min),raw=span/Math.max(1,count),pow=Math.pow(10,Math.floor(Math.log10(raw))),base=[1,2,5,10].find(v=>v*pow>=raw)*pow,start=Math.ceil(min/base)*base,out=[];for(let v=start;v<=max+base*.45;v+=base)out.push(v);return out}
 function drawButton(x,y,w,label,active,hovered){ctx.strokeStyle=active?colors.controlOn:hovered?"#7bb8f8":colors.control;ctx.lineWidth=active||hovered?1.35:.9;roundRect(x,y,w,20,5);ctx.stroke();ctx.fillStyle=hovered||active?colors.text:"rgba(71,85,105,.68)";ctx.textAlign="center";ctx.fillText(label,x+w/2,y+14);ctx.lineWidth=1}
 function drawMarketTabs(x,y){marketBoxes=[];ctx.font="12px Microsoft YaHei,Arial";ctx.fillStyle="rgba(71,85,105,.68)";ctx.textAlign="left";ctx.fillText("品种",x,y+14);let cur=x+36;markets.forEach(m=>{const w=m.key==="brent"?60:50,active=!hidden[m.key];marketBoxes.push({key:m.key,x0:cur,y0:y,x1:cur+w,y1:y+20});drawButton(cur,y,w,m.key==="wti"?"WTI":"Brent",active,false);cur+=w+6});return cur}
+function drawEventModeTabs(x,y){eventModeBoxes=[];ctx.font="12px Microsoft YaHei,Arial";ctx.fillStyle="rgba(71,85,105,.68)";ctx.textAlign="left";ctx.fillText("事件",x,y+14);let cur=x+36;[["major","重大事件"],["party","各方事件"]].forEach(([key,label])=>{const w=68,active=eventMode===key;eventModeBoxes.push({key,x0:cur,y0:y,x1:cur+w,y1:y+20});drawButton(cur,y,w,label,active,false);cur+=w+6});return cur}
 function drawPeriodTabs(x,y){periodBoxes=[];ctx.font="12px Microsoft YaHei,Arial";ctx.fillStyle="rgba(71,85,105,.68)";ctx.textAlign="left";ctx.fillText("周期",x,y+14);let cur=x+36;[["day","日"],["m30","30m"]].forEach(([key,label])=>{const w=key==="day"?36:48,active=period===key;periodBoxes.push({key,x0:cur,y0:y,x1:cur+w,y1:y+20});drawButton(cur,y,w,label,active,false);cur+=w+6});return cur}
-function drawStartTabs(x,y){startBoxes=[];ctx.font="12px Microsoft YaHei,Arial";ctx.fillStyle="rgba(71,85,105,.68)";ctx.textAlign="right";ctx.fillText("起点",x-8,y+14);startOptions.forEach(([key,label],i)=>{const w=42,h=20,left=x+i*(w+6),active=viewStart===key,hovered=hoverStart===key;startBoxes.push({key,x0:left,y0:y,x1:left+w,y1:y+h});drawButton(left,y,w,label,active,hovered)})}
+function drawStartTabs(x,y){startBoxes=[];ctx.font="12px Microsoft YaHei,Arial";ctx.fillStyle="rgba(71,85,105,.68)";ctx.textAlign="right";ctx.fillText("起点",x-8,y+14);let cur=x;startOptions.forEach(([key,label])=>{const w=label.length>4?70:label.length>3?62:46,h=20,active=viewStart===key,hovered=hoverStart===key;startBoxes.push({key,x0:cur,y0:y,x1:cur+w,y1:y+h});drawButton(cur,y,w,label,active,hovered);cur+=w+6})}
 function hitBox(p,boxes){return boxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function drawAxes(){niceTicks(box.priceMin,box.priceMax,7).forEach(v=>{const y=yPrice(v);ctx.fillStyle=colors.text;ctx.textAlign="right";ctx.fillText(usd(v,0),box.x0-9,y+4);ctx.textAlign="left";ctx.fillText(basePct(v),box.x1+9,y+4)})}
 function monthIndex(t){const d=new Date(t);return d.getUTCFullYear()*12+d.getUTCMonth()}
@@ -582,7 +835,7 @@ function drawDateTicks(){if(period==="m30"){const spanDays=Math.max(1,(box.t1-bo
 function drawWeekends(){const start=new Date(box.t0);start.setUTCHours(0,0,0,0);for(let t=start.getTime();t<=box.t1;t+=DAY){const d=new Date(t).getUTCDay();if(d!==6&&d!==0)continue;const x0=xScale(t),x1=xScale(t+DAY);ctx.fillStyle=colors.weekend;ctx.fillRect(x0,box.y0,Math.max(1,x1-x0),box.y1-box.y0)}}
 function candleWidth(){const visible=rows.filter(r=>r.t>=box.t0&&r.t<=box.t1).length||1,byCount=(box.x1-box.x0)/visible*.62,byDay=(box.x1-box.x0)/Math.max(1,(box.t1-box.t0)/DAY)*.72,maxW=period==="m30"?5:10,minW=period==="m30"?.8:2;return Math.max(minW,Math.min(maxW,Math.min(byCount,byDay)))}
 function drawCandles(){const active=visibleMarkets(),bodyW=candleWidth();active.forEach((m,mi)=>{const style=marketStyle[m.key]||marketStyle.wti,offset=(mi-(active.length-1)/2)*bodyW*.62;rows.forEach(r=>{if(!hasOhlc(r,m.key)||r.t<box.t0||r.t>box.t1)return;const v=q(r,m.key),x=xScale(r.t)+offset,up=v.c>=v.o,yH=yPrice(v.h),yL=yPrice(v.l),yO=yPrice(v.o),yC=yPrice(v.c),top=Math.min(yO,yC),height=Math.max(1.1,Math.abs(yC-yO));ctx.strokeStyle=style.stroke;ctx.lineWidth=period==="m30"?.45:.6;ctx.beginPath();ctx.moveTo(x,yH);ctx.lineTo(x,yL);ctx.stroke();ctx.fillStyle=up?style.upFill:style.downFill;ctx.strokeStyle=style.stroke;ctx.fillRect(x-bodyW/2,top,bodyW,height);ctx.strokeRect(x-bodyW/2,top,bodyW,height)})})}
-function drawEvents(activeKey=null){eventBoxes=[];const laneCount=4,visible=events.filter(e=>eventTime(e)>=box.t0&&eventTime(e)<=box.t1).sort((a,b)=>eventTime(a)-eventTime(b));visible.forEach((event,index)=>{const key=eventKey(event),active=activeKey===key,x=xScale(eventTime(event)),lane=index%laneCount,y=box.y1-18-lane*17,r=active?7.2:6.1;ctx.save();ctx.strokeStyle=eventColor(event.score,active?.42:.24);ctx.lineWidth=active?1.1:.8;ctx.beginPath();ctx.moveTo(x,box.y1);ctx.lineTo(x,y-r-2);ctx.stroke();ctx.fillStyle=eventColor(event.score,active?.96:.82);ctx.strokeStyle="rgba(255,255,255,.88)";ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();eventBoxes.push({event,key,x0:x-12,y0:y-12,x1:x+12,y1:y+12})})}
+function drawEvents(activeKey=null){eventBoxes=[];const laneCount=4,visible=currentEvents().filter(e=>eventTime(e)>=box.t0&&eventTime(e)<=box.t1).sort((a,b)=>eventTime(a)-eventTime(b));visible.forEach((event,index)=>{const key=eventKey(event),active=activeKey===key,x=xScale(eventTime(event)),lane=index%laneCount,y=box.y1-18-lane*17,r=active?7.2:6.1;ctx.save();ctx.strokeStyle=eventColor(event,active?.42:.24);ctx.lineWidth=active?1.1:.8;ctx.beginPath();ctx.moveTo(x,box.y1);ctx.lineTo(x,y-r-2);ctx.stroke();ctx.fillStyle=eventColor(event,active?.96:.82);ctx.strokeStyle="rgba(255,255,255,.88)";ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();eventBoxes.push({event,key,x0:x-12,y0:y-12,x1:x+12,y1:y+12})})}
 function draw(active,eventActiveKey=null){
   refreshRows();
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035);
@@ -596,11 +849,12 @@ function draw(active,eventActiveKey=null){
   const titleSize=isEmbed&&w<760?18:21;
   ctx.fillStyle=colors.text;ctx.font=`700 ${titleSize}px Microsoft YaHei,Arial`;ctx.textAlign="center";ctx.fillText("WTI/Brent 原油价格与事件",w/2,titleY);
   const marketEnd=drawMarketTabs(x0,controlY);
-  drawPeriodTabs(marketEnd+16,controlY);
-  drawStartTabs(Math.max(x0+300,x1-184),controlY);
+  const eventModeEnd=drawEventModeTabs(marketEnd+16,controlY);
+  drawPeriodTabs(eventModeEnd+16,controlY);
+  drawStartTabs(Math.max(x0+650,x1-258),controlY);
   drawWeekends();
   drawDateTicks();
-  if(!isEmbed){ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：UTC+8 ${P.generatedAt}　数据来源：${P.dataSources}　事件颜色：绿色表示好消息，红色表示坏消息，颜色越深表示强度越高`,x0,h-Math.max(8,outer*.35))}
+  if(!isEmbed){const eventNote=eventMode==="party"?"事件颜色：美国蓝、以色列紫、伊朗红、美以联动靛蓝":"事件颜色：绿色表示好消息，红色表示坏消息，颜色越深表示强度越高";ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：UTC+8 ${P.generatedAt}　数据来源：${P.dataSources}　${eventNote}`,x0,h-Math.max(8,outer*.35))}
   drawAxes();
   ctx.strokeStyle=colors.frame;ctx.lineWidth=1;ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();drawCandles();ctx.restore();
@@ -622,13 +876,13 @@ function marketLines(r){return visibleMarkets().map(m=>`${m.label} K线：${valu
 function showTip(p){
   if(!inPlot(p)){tip.style.display="none";draw();return}
   const eventHit=hitEvent(p);
-  if(eventHit){const e=eventHit.event,key=eventHit.key,t=eventTime(e);draw(null,key);const x=xScale(t);ctx.setLineDash([4,5]);ctx.strokeStyle=eventColor(e.score,.42);ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);tip.className="tip";tip.innerHTML=`<b>${e.label}</b><br>事件发生时间：${e.dateLabel}<br>类型：${e.type}<br>${e.description}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-330,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-210,p.y-96))+"px";return}
+  if(eventHit){const e=eventHit.event,key=eventHit.key,t=eventTime(e);draw(null,key);const x=xScale(t);ctx.setLineDash([4,5]);ctx.strokeStyle=eventColor(e,.42);ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);const eventMeta=eventMode==="party"?`先发起方：${e.actor}<br>节点：${e.kind}<br>盘面：${e.intensity}`:`类型：${e.type}`;tip.className="tip";tip.innerHTML=`<b>${e.label}</b><br>事件发生时间：${e.dateLabel}<br>${eventMeta}<br>${e.description}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-330,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-430,p.y-260))+"px";return}
   const i=nearest(p.x);if(i==null){tip.style.display="none";draw();return}const r=rows[i];draw(i);
   tip.className="tip";tip.innerHTML=`<b>${rowLabel(r)}</b><br>${marketLines(r)}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-340,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
 }
-canvas.addEventListener("click",e=>{const p=pointer(e),startTab=hitBox(p,startBoxes),periodTab=hitBox(p,periodBoxes),marketTab=hitBox(p,marketBoxes);if(startTab){viewStart=startTab.key;hoverStart=startTab.key;zoom=null;tip.style.display="none";draw();return}if(periodTab){period=periodTab.key;zoom=null;tip.style.display="none";draw();return}if(marketTab){const visible=visibleMarkets(false);if(!hidden[marketTab.key]&&visible.length===1)return;hidden[marketTab.key]=!hidden[marketTab.key];tip.style.display="none";draw()}});
-canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitBox(p,marketBoxes)||hitBox(p,periodBoxes)||hitBox(p,startBoxes)||!inPlot(p))return;drag={x0:p.x,x1:p.x};tip.style.display="none"});
-canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;tip.style.display="none";draw();drawSelection();return}const startTab=hitBox(p,startBoxes),periodTab=hitBox(p,periodBoxes),marketTab=hitBox(p,marketBoxes);if(startTab||periodTab||marketTab){if(startTab&&hoverStart!==startTab.key){hoverStart=startTab.key;draw()}canvas.style.cursor="pointer";tip.style.display="none";return}if(hoverStart!==null){hoverStart=null;draw()}canvas.style.cursor=inPlot(p)?"crosshair":"default";showTip(p)});
+canvas.addEventListener("click",e=>{const p=pointer(e),startTab=hitBox(p,startBoxes),periodTab=hitBox(p,periodBoxes),marketTab=hitBox(p,marketBoxes),eventModeTab=hitBox(p,eventModeBoxes);if(startTab){viewStart=startTab.key;hoverStart=startTab.key;zoom=null;tip.style.display="none";draw();return}if(eventModeTab){eventMode=eventModeTab.key;tip.style.display="none";draw();return}if(periodTab){period=periodTab.key;zoom=null;tip.style.display="none";draw();return}if(marketTab){const visible=visibleMarkets(false);if(!hidden[marketTab.key]&&visible.length===1)return;hidden[marketTab.key]=!hidden[marketTab.key];tip.style.display="none";draw()}});
+canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitBox(p,marketBoxes)||hitBox(p,eventModeBoxes)||hitBox(p,periodBoxes)||hitBox(p,startBoxes)||!inPlot(p))return;drag={x0:p.x,x1:p.x};tip.style.display="none"});
+canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;tip.style.display="none";draw();drawSelection();return}const startTab=hitBox(p,startBoxes),periodTab=hitBox(p,periodBoxes),marketTab=hitBox(p,marketBoxes),eventModeTab=hitBox(p,eventModeBoxes);if(startTab||periodTab||marketTab||eventModeTab){if(startTab&&hoverStart!==startTab.key){hoverStart=startTab.key;draw()}canvas.style.cursor="pointer";tip.style.display="none";return}if(hoverStart!==null){hoverStart=null;draw()}canvas.style.cursor=inPlot(p)?"crosshair":"default";showTip(p)});
 window.addEventListener("mouseup",()=>{if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1);if(Math.abs(x1-x0)>12){const a=timeAtX(x0),b=timeAtX(x1);zoom=[Math.min(a,b),Math.max(a,b)]}drag=null;tip.style.display="none";draw()});
 canvas.addEventListener("mouseleave",()=>{if(drag)return;hoverStart=null;tip.style.display="none";canvas.style.cursor="default";draw()});
 canvas.addEventListener("dblclick",()=>{zoom=null;drag=null;tip.style.display="none";draw()});
