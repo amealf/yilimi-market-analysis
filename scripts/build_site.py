@@ -18,9 +18,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "scripts"
 SITE_DIR = ROOT / "site"
 CONFIG_PATH = ROOT / "charts.yml"
-DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、Binance、KOFIA FreeSIS、Yahoo Finance、Naver Finance、CNBC、TradingView、ICE、CSV"
+DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、Binance、KOFIA FreeSIS、FinMind、TWSE、Yahoo Finance、Naver Finance、CNBC、TradingView、ICE、CSV"
 CATEGORY_SOURCES = {
-    "a-share-margin": "东方财富、新浪财经、KOFIA FreeSIS、Yahoo Finance、Naver Finance、TradingView",
+    "a-share-margin": "东方财富、新浪财经、KOFIA FreeSIS、FinMind、TWSE、Yahoo Finance、Naver Finance、TradingView",
     "crypto-liquidity": "CryptoCompare、DefiLlama",
     "intraday-analysis": "Binance",
     "other-markets": "TradingView、ICE、CSV",
@@ -151,6 +151,44 @@ def build_korea_margin_kospi(chart: dict) -> dict:
             {
                 "label": "外资净买入",
                 "value": f"{meta['latestForeignNetBuy']:.0f} 亿韩元",
+                "date": meta["latestForeignDate"],
+            },
+        ],
+    }
+
+
+def build_taiwan_margin_taiex(chart: dict) -> dict:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+    module = importlib.import_module(chart["module"])
+
+    csv_path = site_path(chart["output_csv"])
+    html_path = site_path(chart["output_html"])
+    cache_path = ROOT / chart["output_csv"]
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    data = module.build_data_frame(cache_path=cache_path if cache_path.exists() else None)
+    data.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    data.to_csv(cache_path, index=False, encoding="utf-8-sig")
+    module.write_interactive_html(data, html_path)
+
+    meta = module.chart_meta(data)
+    return {
+        "latest_financing_date": meta["latestFinancingDate"],
+        "latest_financing": meta["latestFinancing"],
+        "latest_taiex_date": meta["latestTaiexDate"],
+        "latest_taiex": meta["latestTaiex"],
+        "metrics": [
+            {
+                "label": "融资余额",
+                "value": f"{meta['latestFinancing']:.3f} 万亿新台币",
+                "date": meta["latestFinancingDate"],
+            },
+            {"label": "TAIEX", "value": f"{meta['latestTaiex']:.2f}", "date": meta["latestTaiexDate"]},
+            {
+                "label": "外资净买入",
+                "value": f"{meta['latestForeignNetBuy']:.0f} 亿新台币",
                 "date": meta["latestForeignDate"],
             },
         ],
@@ -328,6 +366,7 @@ BUILDERS = {
     "usdt_speed_indicator": build_usdt_speed_indicator,
     "btc_intraday_flow": build_btc_intraday_flow,
     "korea_margin_kospi": build_korea_margin_kospi,
+    "taiwan_margin_taiex": build_taiwan_margin_taiex,
     "oil_price_events": build_oil_price_events,
     "static_html": build_static_html,
     "global_30y_bond_intraday": build_global_30y_bond_intraday,

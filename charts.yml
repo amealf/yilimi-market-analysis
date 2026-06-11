@@ -1,11 +1,11 @@
 site:
   title: Yilimi Market Analysis
-  description: 跟踪 A 股融资余额、BTC/ETH 价格、稳定币发行量、BTC日内主动成交、KOSPI现金流和全球30Y国债收益率。
+  description: 跟踪 A 股融资余额、BTC/ETH 价格、稳定币发行量、BTC日内主动成交、KOSPI/TAIEX现金流和全球30Y国债收益率。
 
 categories:
   - id: a-share-margin
     title: 现金流监控
-    description: 跟踪 A 股融资余额、KOSPI、韩国信用交易融资余额和外资净买入。
+    description: 跟踪 A 股融资余额、KOSPI、TAIEX、韩国和台湾融资余额及外资净买入。
   - id: crypto-liquidity
     title: 加密市场流动性
     description: 跟踪 BTC 价格与 USDT 净增速度多空指标。
@@ -52,6 +52,14 @@ charts:
     module: plot_korea_margin_kospi
     output_html: charts/a-share-margin/korea-margin-kospi.html
     output_csv: data/a-share-margin/korea-margin-kospi.csv
+  - id: taiwan-margin-taiex
+    category: a-share-margin
+    title: TAIEX & Cash flow
+    description: TAIEX、台湾融资余额、外资净买入和USD/TWD的对比图。
+    builder: taiwan_margin_taiex
+    module: plot_taiwan_margin_taiex
+    output_html: charts/a-share-margin/taiwan-margin-taiex.html
+    output_csv: data/a-share-margin/taiwan-margin-taiex.csv
   - id: hsi-net-flow
     category: other-markets
     title: HSI K线与累计净买入

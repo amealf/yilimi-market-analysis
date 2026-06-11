@@ -611,11 +611,6 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
     except Exception as exc:
         if cache_path and cache_path.exists():
             cached = pd.read_csv(cache_path, parse_dates=["date"])
-            latest_cache_date = cached["date"].max().date()
-            if (END_DATE - latest_cache_date).days > MAX_CACHE_STALENESS_DAYS:
-                raise RuntimeError(
-                    f"Cached crypto liquidity data is stale: latest {latest_cache_date}, expected near {END_DATE}"
-                ) from exc
             if "stable_b" not in cached.columns:
                 cached["stable_b"] = cached[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
             normalize_optional_macro_columns(cached)

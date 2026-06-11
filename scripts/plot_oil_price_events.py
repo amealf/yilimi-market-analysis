@@ -262,6 +262,14 @@ OIL_EVENTS: list[dict[str, str]] = [
         "score": "-0.80",
         "description": "川普指责伊朗在霍尔木兹附近击落一架美国陆军Apache直升机，并表示美国必须回应；两名机组人员获救且未受伤，事件进一步压迫停火谈判。",
     },
+    {
+        "date": "2026-06-10",
+        "dateLabel": "2026-06-10 14:30 UTC",
+        "label": "库存大降",
+        "type": "库存收紧",
+        "score": "-0.55",
+        "description": "EIA周报显示，截至6月5日当周，美国商业原油库存减少720万桶至4.265亿桶，约低于五年同期均值5%；这是供应偏紧延续的信号。",
+    },
 ]
 PARTY_EVENTS: list[dict[str, str]] = [
     {
@@ -497,6 +505,15 @@ PARTY_EVENTS: list[dict[str, str]] = [
         "kind": "消息",
         "intensity": "中",
         "description": "事件｜伊朗革命卫队称打击约旦al-Azraq美军基地，以及巴林、科威特等海湾目标，并称出动无人机攻击美国第五舰队。回应｜约旦称拦截5枚伊朗导弹，科威特和巴林启动防空；美方初步评估称几乎所有导弹和无人机被拦截，暂未看到美军人员或设施受损报告。市场影响｜交易员等待是否有美军伤亡、是否打到能源设施、霍尔木兹是否重新进入实质关闭。",
+    },
+    {
+        "date": "2026-06-10",
+        "dateLabel": "2026-06-10 14:30 UTC",
+        "label": "EIA库存减少720万桶",
+        "actor": "美国 EIA",
+        "kind": "库存报告",
+        "intensity": "中高",
+        "description": "事件｜EIA周报显示，截至6月5日当周，美国商业原油库存减少720万桶，库存降至4.265亿桶。回应｜库存约低于五年同期均值5%，并且降幅大于市场预期。市场影响｜在霍尔木兹扰动仍未完全解除时，库存收紧会强化供应偏紧交易。",
     },
 ]
 MARKETS = [
@@ -761,6 +778,7 @@ def write_interactive_html(data: dict[str, pd.DataFrame] | pd.DataFrame, output_
     .home-link svg{width:18px;height:18px;stroke:currentColor}
     canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
     .tip{position:absolute;display:none;pointer-events:none;box-sizing:border-box;min-width:220px;max-width:390px;background:rgba(255,255,255,.24);border:1px solid rgba(120,129,145,.42);border-radius:6px;color:#17202a;padding:9px 10px;font-size:12px;line-height:1.65;box-shadow:0 8px 22px rgba(15,23,42,.12);backdrop-filter:blur(2px);overflow-wrap:anywhere;white-space:normal}
+    .tip.is-pinned{pointer-events:auto;cursor:pointer}
   </style>
 </head>
 <body>
@@ -784,11 +802,11 @@ const eventSets={
 };
 const colors={text:"#111827",legend:"#374151",muted:"#4b5563",frame:"rgba(17,17,17,.48)",weekend:"rgba(148,163,184,.045)",control:"rgba(71,85,105,.42)",controlOn:"#1f77b4"};
 const marketStyle={
-  wti:{stroke:"rgba(17,17,17,.59)",upFill:"rgba(255,255,255,.92)",downFill:"rgba(17,17,17,.55)"},
-  brent:{stroke:"rgba(31,119,180,.52)",upFill:"rgba(255,255,255,.90)",downFill:"rgba(31,119,180,.42)"}
+  wti:{stroke:"rgba(31,119,180,.52)",upFill:"rgba(255,255,255,.90)",downFill:"rgba(31,119,180,.42)"},
+  brent:{stroke:"rgba(17,17,17,.59)",upFill:"rgba(255,255,255,.92)",downFill:"rgba(17,17,17,.55)"}
 };
 const startOptions=[["2020-03-11","Covid"],["2022-02-24","俄乌战争"],["2026-02-28","伊朗战争"],["2026-01-01","2026"]];
-let period="m30",eventMode="party",rows=periodDefs.m30.rows,box={},zoom=null,drag=null,eventBoxes=[],startBoxes=[],marketBoxes=[],periodBoxes=[],eventModeBoxes=[],viewStart="2026-01-01",hoverStart=null,hidden={wti:true};
+let period="m30",eventMode="party",rows=periodDefs.m30.rows,box={},zoom=null,drag=null,eventBoxes=[],startBoxes=[],marketBoxes=[],periodBoxes=[],eventModeBoxes=[],viewStart="2026-01-01",hoverStart=null,pinnedEventKey=null,hidden={wti:true};
 function eventExactTime(e){const m=String(e.dateLabel||"").match(/^(\\d{4})-(\\d{2})-(\\d{2})\\s+(\\d{2}):(\\d{2})/);if(m)return Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5]);return new Date(`${e.date}T00:00:00Z`).getTime()}
 function normalizeEvent(e,mode){const exact=eventExactTime(e),dayT=new Date(`${e.date}T00:00:00Z`).getTime();return{...e,mode,exactT:exact,dayT,m30T:Math.floor(exact/SLOT30)*SLOT30}}
 function refreshRows(){rows=periodDefs[period].rows||[]}
@@ -836,6 +854,7 @@ function drawWeekends(){const start=new Date(box.t0);start.setUTCHours(0,0,0,0);
 function candleWidth(){const visible=rows.filter(r=>r.t>=box.t0&&r.t<=box.t1).length||1,byCount=(box.x1-box.x0)/visible*.62,byDay=(box.x1-box.x0)/Math.max(1,(box.t1-box.t0)/DAY)*.72,maxW=period==="m30"?5:10,minW=period==="m30"?.8:2;return Math.max(minW,Math.min(maxW,Math.min(byCount,byDay)))}
 function drawCandles(){const active=visibleMarkets(),bodyW=candleWidth();active.forEach((m,mi)=>{const style=marketStyle[m.key]||marketStyle.wti,offset=(mi-(active.length-1)/2)*bodyW*.62;rows.forEach(r=>{if(!hasOhlc(r,m.key)||r.t<box.t0||r.t>box.t1)return;const v=q(r,m.key),x=xScale(r.t)+offset,up=v.c>=v.o,yH=yPrice(v.h),yL=yPrice(v.l),yO=yPrice(v.o),yC=yPrice(v.c),top=Math.min(yO,yC),height=Math.max(1.1,Math.abs(yC-yO));ctx.strokeStyle=style.stroke;ctx.lineWidth=period==="m30"?.45:.6;ctx.beginPath();ctx.moveTo(x,yH);ctx.lineTo(x,yL);ctx.stroke();ctx.fillStyle=up?style.upFill:style.downFill;ctx.strokeStyle=style.stroke;ctx.fillRect(x-bodyW/2,top,bodyW,height);ctx.strokeRect(x-bodyW/2,top,bodyW,height)})})}
 function drawEvents(activeKey=null){eventBoxes=[];const laneCount=4,visible=currentEvents().filter(e=>eventTime(e)>=box.t0&&eventTime(e)<=box.t1).sort((a,b)=>eventTime(a)-eventTime(b));visible.forEach((event,index)=>{const key=eventKey(event),active=activeKey===key,x=xScale(eventTime(event)),lane=index%laneCount,y=box.y1-18-lane*17,r=active?7.2:6.1;ctx.save();ctx.strokeStyle=eventColor(event,active?.42:.24);ctx.lineWidth=active?1.1:.8;ctx.beginPath();ctx.moveTo(x,box.y1);ctx.lineTo(x,y-r-2);ctx.stroke();ctx.fillStyle=eventColor(event,active?.96:.82);ctx.strokeStyle="rgba(255,255,255,.88)";ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();eventBoxes.push({event,key,x0:x-12,y0:y-12,x1:x+12,y1:y+12})})}
+function drawFooterText(x,y,eventColorText){const pieces=[["刷新时间：",true],[`UTC+8 ${P.generatedAt}　`,false],["数据来源：",true],[`${P.dataSources}　`,false],["事件颜色：",true],[eventColorText,false]];let cur=x;pieces.forEach(([text,bold])=>{ctx.font=`${bold?"700 ":""}11px Microsoft YaHei,Arial`;ctx.fillText(text,cur,y);cur+=ctx.measureText(text).width})}
 function draw(active,eventActiveKey=null){
   refreshRows();
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035);
@@ -854,11 +873,11 @@ function draw(active,eventActiveKey=null){
   drawStartTabs(Math.max(x0+650,x1-258),controlY);
   drawWeekends();
   drawDateTicks();
-  if(!isEmbed){const eventNote=eventMode==="party"?"事件颜色：美国蓝、以色列紫、伊朗红、美以联动靛蓝":"事件颜色：绿色表示好消息，红色表示坏消息，颜色越深表示强度越高";ctx.fillStyle=colors.muted;ctx.font="11px Microsoft YaHei,Arial";ctx.textAlign="left";ctx.fillText(`刷新时间：UTC+8 ${P.generatedAt}　数据来源：${P.dataSources}　${eventNote}`,x0,h-Math.max(8,outer*.35))}
+  if(!isEmbed){const eventColorText=eventMode==="party"?"美国蓝、以色列紫、伊朗红、美以联动靛蓝":"绿色表示好消息，红色表示坏消息，颜色越深表示强度越高";ctx.fillStyle=colors.muted;ctx.textAlign="left";drawFooterText(x0,h-Math.max(8,outer*.35),eventColorText)}
   drawAxes();
   ctx.strokeStyle=colors.frame;ctx.lineWidth=1;ctx.strokeRect(x0,y0,x1-x0,y1-y0);
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();drawCandles();ctx.restore();
-  drawEvents(eventActiveKey);
+  drawEvents(eventActiveKey||pinnedEventKey);
   ctx.fillStyle=colors.text;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText("美元 / 桶",0,0);ctx.restore();
   ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillText("上涨比例（首个开盘价=100%）",0,0);ctx.restore();
   if(!rows.length){ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText("当前周期暂无数据",w/2,(y0+y1)/2)}
@@ -874,19 +893,24 @@ function drawSelection(){if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag
 function rowLabel(r){return period==="m30"?timeText(r.t):dayLabel(r.date)}
 function marketLines(r){return visibleMarkets().map(m=>`${m.label} K线：${valueText(r,m.key)}`).join("<br>")}
 function eventDescriptionHtml(text){const s=String(text||"");const labels=["事件","回应","市场影响"];if(!labels.every(label=>s.includes(`${label}｜`)))return s;return labels.map((label,i)=>{const marker=`${label}｜`,start=s.indexOf(marker),next=labels.slice(i+1).map(n=>s.indexOf(`${n}｜`)).filter(n=>n>start).sort((a,b)=>a-b)[0];const body=s.slice(start+marker.length,next==null?s.length:next).replace(/^。/,"").trim();return `<b>${label}：</b>${body}`}).join("<br>")}
+function clearPinned(redraw=false){pinnedEventKey=null;tip.className="tip";tip.style.display="none";if(redraw)draw()}
+function eventTipHtml(e){const eventMeta=eventMode==="party"?`<b>发起方：</b>${e.actor}`:`<b>类型：</b>${e.type}`;return `<b>${e.label}</b><br><b>发生时间：</b>${e.dateLabel}<br>${eventMeta}<br>${eventDescriptionHtml(e.description)}`}
+function showEventTip(eventHit,p,pinned=false){const e=eventHit.event,key=eventHit.key,t=eventTime(e);draw(null,key);const x=xScale(t);ctx.setLineDash([4,5]);ctx.strokeStyle=eventColor(e,.42);ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);tip.className=pinned?"tip is-pinned":"tip";tip.innerHTML=eventTipHtml(e);tip.style.display="block";tip.style.left=Math.min(p.rect.width-330,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-430,p.y-260))+"px"}
 function showTip(p){
+  if(pinnedEventKey)return;
   if(!inPlot(p)){tip.style.display="none";draw();return}
   const eventHit=hitEvent(p);
-  if(eventHit){const e=eventHit.event,key=eventHit.key,t=eventTime(e);draw(null,key);const x=xScale(t);ctx.setLineDash([4,5]);ctx.strokeStyle=eventColor(e,.42);ctx.beginPath();ctx.moveTo(x,box.y0);ctx.lineTo(x,box.y1);ctx.stroke();ctx.setLineDash([]);const eventMeta=eventMode==="party"?`发起方：${e.actor}`:`类型：${e.type}`;tip.className="tip";tip.innerHTML=`<b>${e.label}</b><br>事件发生时间：${e.dateLabel}<br>${eventMeta}<br>${eventDescriptionHtml(e.description)}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-330,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-430,p.y-260))+"px";return}
+  if(eventHit){showEventTip(eventHit,p);return}
   const i=nearest(p.x);if(i==null){tip.style.display="none";draw();return}const r=rows[i];draw(i);
   tip.className="tip";tip.innerHTML=`<b>${rowLabel(r)}</b><br>${marketLines(r)}`;tip.style.display="block";tip.style.left=Math.min(p.rect.width-340,Math.max(8,p.x+14))+"px";tip.style.top=Math.max(8,Math.min(p.rect.height-178,p.y-70))+"px";
 }
-canvas.addEventListener("click",e=>{const p=pointer(e),startTab=hitBox(p,startBoxes),periodTab=hitBox(p,periodBoxes),marketTab=hitBox(p,marketBoxes),eventModeTab=hitBox(p,eventModeBoxes);if(startTab){viewStart=startTab.key;hoverStart=startTab.key;zoom=null;tip.style.display="none";draw();return}if(eventModeTab){eventMode=eventModeTab.key;tip.style.display="none";draw();return}if(periodTab){period=periodTab.key;zoom=null;tip.style.display="none";draw();return}if(marketTab){const visible=visibleMarkets(false);if(!hidden[marketTab.key]&&visible.length===1)return;hidden[marketTab.key]=!hidden[marketTab.key];tip.style.display="none";draw()}});
-canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitBox(p,marketBoxes)||hitBox(p,eventModeBoxes)||hitBox(p,periodBoxes)||hitBox(p,startBoxes)||!inPlot(p))return;drag={x0:p.x,x1:p.x};tip.style.display="none"});
-canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;tip.style.display="none";draw();drawSelection();return}const startTab=hitBox(p,startBoxes),periodTab=hitBox(p,periodBoxes),marketTab=hitBox(p,marketBoxes),eventModeTab=hitBox(p,eventModeBoxes);if(startTab||periodTab||marketTab||eventModeTab){if(startTab&&hoverStart!==startTab.key){hoverStart=startTab.key;draw()}canvas.style.cursor="pointer";tip.style.display="none";return}if(hoverStart!==null){hoverStart=null;draw()}canvas.style.cursor=inPlot(p)?"crosshair":"default";showTip(p)});
+canvas.addEventListener("click",e=>{const p=pointer(e),startTab=hitBox(p,startBoxes),periodTab=hitBox(p,periodBoxes),marketTab=hitBox(p,marketBoxes),eventModeTab=hitBox(p,eventModeBoxes),eventHit=hitEvent(p);if(startTab){viewStart=startTab.key;hoverStart=startTab.key;zoom=null;clearPinned();draw();return}if(eventModeTab){eventMode=eventModeTab.key;clearPinned();draw();return}if(periodTab){period=periodTab.key;zoom=null;clearPinned();draw();return}if(marketTab){const visible=visibleMarkets(false);if(!hidden[marketTab.key]&&visible.length===1)return;hidden[marketTab.key]=!hidden[marketTab.key];clearPinned();draw();return}if(eventHit){if(pinnedEventKey===eventHit.key){clearPinned(true);return}pinnedEventKey=eventHit.key;showEventTip(eventHit,p,true);return}});
+canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitBox(p,marketBoxes)||hitBox(p,eventModeBoxes)||hitBox(p,periodBoxes)||hitBox(p,startBoxes)||hitEvent(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};clearPinned()});
+canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;tip.style.display="none";draw();drawSelection();return}const startTab=hitBox(p,startBoxes),periodTab=hitBox(p,periodBoxes),marketTab=hitBox(p,marketBoxes),eventModeTab=hitBox(p,eventModeBoxes);if(startTab||periodTab||marketTab||eventModeTab){if(startTab&&hoverStart!==startTab.key){hoverStart=startTab.key;draw()}canvas.style.cursor="pointer";if(!pinnedEventKey)tip.style.display="none";return}if(hoverStart!==null){hoverStart=null;draw()}const eventHit=hitEvent(p);canvas.style.cursor=eventHit?"pointer":inPlot(p)?"crosshair":"default";showTip(p)});
 window.addEventListener("mouseup",()=>{if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1);if(Math.abs(x1-x0)>12){const a=timeAtX(x0),b=timeAtX(x1);zoom=[Math.min(a,b),Math.max(a,b)]}drag=null;tip.style.display="none";draw()});
-canvas.addEventListener("mouseleave",()=>{if(drag)return;hoverStart=null;tip.style.display="none";canvas.style.cursor="default";draw()});
-canvas.addEventListener("dblclick",()=>{zoom=null;drag=null;tip.style.display="none";draw()});
+canvas.addEventListener("mouseleave",()=>{if(drag)return;hoverStart=null;if(!pinnedEventKey){tip.style.display="none";canvas.style.cursor="default";draw()}});
+canvas.addEventListener("dblclick",()=>{zoom=null;drag=null;clearPinned();draw()});
+tip.addEventListener("click",()=>{if(pinnedEventKey)clearPinned(true)});
 window.addEventListener("resize",resize);
 refreshRows();
 resize();
