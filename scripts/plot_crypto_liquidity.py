@@ -252,7 +252,7 @@ BTC ETF累计净流入显示美国现货 BTC ETF每日净流入的累计值，�
 
 ETF资金和稳定币资金属于不同入口。稳定币偏链上和交易所资金环境，ETF偏传统金融账户资金环境。两者同向时，资金信号更一致；两者背离时，需要结合价格和利率一起看。
 
-USDT+USDC+ETF流入默认隐藏。它用 USDT+USDC 的发行量，加上 BTC ETF 累计净流入并换算成十亿美元，用来观察链上美元和传统金融入口资金是否共同扩张。
+USDT+USDC+ETF流入默认隐藏。它用 USDT+USDC 的发行量，加上 BTC ETF 累计净流入并换算成十亿美元，用来观察链上美元和传统金融入口资金是否共同扩张。开启这条线后，零轴附近会用绿柱和红柱显示当日净流入或净流出。
 
 Treasury QE 默认隐藏。它用美国可流通 T-Bill 余额计算 12 个月变化，再按当前图表区间做 z-score 标准化。它是用公开债务数据复刻的 T-Bill 发行冲击线，官方没有发布同名现成指标。
 
@@ -299,7 +299,7 @@ BTC ETF cumulative net inflow tracks cumulative daily net inflow into US spot BT
 
 ETF money and stablecoin money enter the market through different channels. Stablecoins reflect on-chain and exchange funding conditions, while ETFs reflect traditional-account access to BTC. When both move together, the funding signal is more aligned; when they diverge, price and rates need extra attention.
 
-USDT+USDC+ETF inflow is hidden by default. It adds USDT+USDC supply and cumulative spot BTC ETF net inflow, converted to billions of dollars, to show whether on-chain dollar balances and ETF access are expanding together.
+USDT+USDC+ETF inflow is hidden by default. It adds USDT+USDC supply and cumulative spot BTC ETF net inflow, converted to billions of dollars, to show whether on-chain dollar balances and ETF access are expanding together. When this line is enabled, green and red bars around the zero axis show daily net inflow or outflow.
 
 Treasury QE is hidden by default. It takes the 12-month change in US marketable T-Bill outstanding, then normalizes it with a z-score over the chart window. It is a reconstructed T-Bill issuance impulse line; there is no official Treasury or Fed series with this exact name.
 
@@ -596,6 +596,7 @@ def add_combined_liquidity(data: pd.DataFrame) -> None:
         data["btc_etf_flow"] = 0
     etf_flow_b = pd.to_numeric(data["btc_etf_flow"], errors="coerce").fillna(0) / 1000
     data["stable_etf_b"] = stable + etf_flow_b
+    data["stable_etf_flow_b"] = data["stable_etf_b"].diff()
 
 
 def fetch_optional_macro_series() -> dict[str, pd.Series | None]:
@@ -995,6 +996,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
                 "usdc": series_value(row.usdc_b, 4),
                 "stable": series_value(row.stable_b, 4),
                 "stableEtf": series_value(row.stable_etf_b, 4),
+                "stableEtfFlow": series_value(row.stable_etf_flow_b, 4),
                 "us1y": series_value(row.us_1y, 4),
                 "treasuryQE": series_value(row.treasury_qe, 4),
                 "btcEtfFlow": series_value(row.btc_etf_flow, 2),
@@ -1053,12 +1055,12 @@ const homeLink=document.getElementById("homeLink");
 const langSwitch=document.getElementById("langSwitch");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleDownAlpha:.42,usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",stableEtf:"#0f766e",us1y:"rgba(248,113,113,.62)",treasuryQE:"rgba(147,51,234,.74)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleDownAlpha:.42,usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",stableEtf:"#0f766e",stableEtfFlowUp:"rgba(22,163,74,.34)",stableEtfFlowDown:"rgba(220,38,38,.30)",us1y:"rgba(248,113,113,.62)",treasuryQE:"rgba(147,51,234,.74)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const params=new URLSearchParams(location.search);
 let lang=params.get("lang")==="en"?"en":"zh";
 const text={
-  zh:{title:"USDT发行量 与 BTC/ETH",refresh:"刷新时间",sources:"数据来源",explain:"数据解释",home:"返回主页",axisPct:"价格与BTC/ETH比值（起点=0%）",axisLog:"价格与BTC/ETH比值（对数变化）",axisSupply:"USDT / USDC / ETF累计净流入（$B）",time:"时间",type:"类型",open:"开",high:"高",low:"低",close:"收",period_day:"日",period_week:"周",period_month:"月",period_quarter:"季",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH比值",series_usdt:"USDT发行量",series_usdc:"USDC发行量",series_stable:"USDT+USDC",series_stableEtf:"USDT+USDC+ETF流入",series_btcEtfFlow:"BTC ETF累计净流入",series_us1y:"美国1Y利率",series_treasuryQE:"Treasury QE",dataSources:"CryptoCompare、DefiLlama、FRED、Farside Investors、U.S. Treasury Fiscal Data"},
-  en:{title:"USDT Supply and BTC/ETH",refresh:"Refresh",sources:"Sources",explain:"Data notes",home:"Home",axisPct:"Price and BTC/ETH ratio (start = 0%)",axisLog:"Price and BTC/ETH ratio (log change)",axisSupply:"USDT / USDC / ETF cumulative net inflow ($B)",time:"Time",type:"Type",open:"O",high:"H",low:"L",close:"C",period_day:"D",period_week:"W",period_month:"M",period_quarter:"Q",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH ratio",series_usdt:"USDT supply",series_usdc:"USDC supply",series_stable:"USDT+USDC",series_stableEtf:"USDT+USDC+ETF inflow",series_btcEtfFlow:"Spot BTC ETF cum. net inflow",series_us1y:"US 1Y yield",series_treasuryQE:"Treasury QE",dataSources:"CryptoCompare, DefiLlama, FRED, Farside Investors, U.S. Treasury Fiscal Data"}
+  zh:{title:"USDT发行量 与 BTC/ETH",refresh:"刷新时间",sources:"数据来源",explain:"数据解释",home:"返回主页",axisPct:"价格与BTC/ETH比值（起点=0%）",axisLog:"价格与BTC/ETH比值（对数变化）",axisSupply:"USDT / USDC / ETF累计净流入（$B）",stableEtfFlowAxis:"USDT+USDC+ETF净流入（$B）",stableEtfFlowShort:"净流入（$B）",time:"时间",type:"类型",open:"开",high:"高",low:"低",close:"收",period_day:"日",period_week:"周",period_month:"月",period_quarter:"季",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH比值",series_usdt:"USDT发行量",series_usdc:"USDC发行量",series_stable:"USDT+USDC",series_stableEtf:"USDT+USDC+ETF流入",series_btcEtfFlow:"BTC ETF累计净流入",series_us1y:"美国1Y利率",series_treasuryQE:"Treasury QE",dataSources:"CryptoCompare、DefiLlama、FRED、Farside Investors、U.S. Treasury Fiscal Data"},
+  en:{title:"USDT Supply and BTC/ETH",refresh:"Refresh",sources:"Sources",explain:"Data notes",home:"Home",axisPct:"Price and BTC/ETH ratio (start = 0%)",axisLog:"Price and BTC/ETH ratio (log change)",axisSupply:"USDT / USDC / ETF cumulative net inflow ($B)",stableEtfFlowAxis:"USDT+USDC+ETF net flow ($B)",stableEtfFlowShort:"Net flow ($B)",time:"Time",type:"Type",open:"O",high:"H",low:"L",close:"C",period_day:"D",period_week:"W",period_month:"M",period_quarter:"Q",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH ratio",series_usdt:"USDT supply",series_usdc:"USDC supply",series_stable:"USDT+USDC",series_stableEtf:"USDT+USDC+ETF inflow",series_btcEtfFlow:"Spot BTC ETF cum. net inflow",series_us1y:"US 1Y yield",series_treasuryQE:"Treasury QE",dataSources:"CryptoCompare, DefiLlama, FRED, Farside Investors, U.S. Treasury Fiscal Data"}
 };
 function tr(key){return text[lang]?.[key]||text.zh[key]||key}
 function colon(){return lang==="en"?":":"："}
@@ -1124,6 +1126,8 @@ function groupedRows(mode){
   return addPeriodChanges(Array.from(groups.values()).map(group=>{
     const last=cloneRow(group[group.length-1]);
     ["btc","eth","sol","bnb"].forEach(key=>groupOhlc(group,last,key));
+    const stableEtfFlows=group.map(r=>r.stableEtfFlow).filter(finite);
+    last.stableEtfFlow=stableEtfFlows.length?stableEtfFlows.reduce((sum,v)=>sum+v,0):null;
     return last;
   }).sort((a,b)=>a.t-b.t));
 }
@@ -1137,13 +1141,14 @@ function signedPct(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":""
 function ratePct(v){return v==null?"-":Number(v).toFixed(2)+"%"}
 function scoreValue(v){return v==null?"-":Number(v).toFixed(2)}
 function flowValue(v){if(v==null)return "-";const n=Number(v),sign=n>0?"+":"";return Math.abs(n)>=1000?sign+"$"+(n/1000).toFixed(2)+"B":sign+"$"+n.toFixed(1)+"M"}
+function stableEtfFlowNote(r){if(r.stableEtfFlow==null)return "";const label=period==="day"?(lang==="en"?"daily":"当日"):(lang==="en"?"period":"当期");return `${label} ${signedB(r.stableEtfFlow)}`}
 function pct(v,d=1){return v==null?"-":Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})+"%"}
 function axisPct(v){if(v==null)return "-";const n=Math.round(Number(v));return n===0?"0%":(n>0?"+":"")+n.toLocaleString("en-US")+"%"}
 function ratioValue(item,r,suffix=""){const key=item.candle||item.key,base=ratioBase[key],source=suffix?`${key}${suffix}`:key;if(!base||r[source]==null)return null;const ratio=r[source]/base;return valueScale==="log"?Math.log(ratio)*100:(ratio-1)*100}
 function plotValue(item,r){const v=item.scale==="ratio"?ratioValue(item,r):r[item.key];return v!=null&&item.valueDivisor?v/item.valueDivisor:v}
 function wrapNote(text){return lang==="en"?` (${text})`:`（${text}）`}
 function ohlcText(item,r){const key=item.candle;return `${tr("open")} ${usd(r[`${key}Open`])} / ${tr("high")} ${usd(r[`${key}High`])} / ${tr("low")} ${usd(r[`${key}Low`])} / ${tr("close")} ${usd(r[key])}`}
-function valueText(item,r){if(item.scale==="ratio"){const daily=r[dailyKey(item.key)];if(r[item.key]==null)return "-";if(item.kind==="candle"&&priceMode==="candle")return `${ohlcText({candle:item.key},r)}${wrapNote(signedPct(daily))}`;if(item.format==="number")return Number(r[item.key]).toFixed(2)+wrapNote(signedPct(daily));return usd(r[item.key])+wrapNote(signedPct(daily))}if(item.key==="btcEtfFlow")return flowValue(r[item.key]);if(item.scale==="rate")return ratePct(r[item.key]);if(item.scale==="score")return scoreValue(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
+function valueText(item,r){if(item.scale==="ratio"){const daily=r[dailyKey(item.key)];if(r[item.key]==null)return "-";if(item.kind==="candle"&&priceMode==="candle")return `${ohlcText({candle:item.key},r)}${wrapNote(signedPct(daily))}`;if(item.format==="number")return Number(r[item.key]).toFixed(2)+wrapNote(signedPct(daily));return usd(r[item.key])+wrapNote(signedPct(daily))}if(item.key==="btcEtfFlow")return flowValue(r[item.key]);if(item.key==="stableEtf"){const note=stableEtfFlowNote(r);return note?`${b(r[item.key])}${wrapNote(note)}`:b(r[item.key])}if(item.scale==="rate")return ratePct(r[item.key]);if(item.scale==="score")return scoreValue(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
 function extentValues(item,r){return item.kind==="candle"&&priceMode==="candle"?["Open","High","Low",""].map(s=>ratioValue(item,r,s)):[plotValue(item,r)]}
 function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.flatMap(r=>extentValues(item,r)).filter(finite)});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
@@ -1291,6 +1296,38 @@ function drawPath(item){
   });
   ctx.strokeStyle=item.color;ctx.lineWidth=item.width;ctx.setLineDash(item.dash||[]);ctx.stroke();ctx.setLineDash([]);
 }
+function drawStableEtfFlowBars(){
+  if(hidden.stableEtf)return;
+  const sample=visibleRows(),nums=sample.map(r=>r.stableEtfFlow).filter(finite);
+  if(!nums.length)return;
+  const maxAbs=Math.max(...nums.map(v=>Math.abs(v)));
+  if(!maxAbs)return;
+  const zero=yRatio(0);
+  if(zero<box.y0||zero>box.y1)return;
+  const room=Math.min(zero-box.y0-5,box.y1-zero-5);
+  if(room<=2)return;
+  const band=Math.max(6,Math.min((box.y1-box.y0)*.13,room));
+  const step=sample.length>1?Math.abs(xScale(sample[1].t)-xScale(sample[0].t)):4;
+  const cap=period==="quarter"?16:period==="month"?11:period==="week"?8:5,barW=Math.max(.8,Math.min(cap,step*.72));
+  ctx.save();
+  ctx.strokeStyle="rgba(71,85,105,.30)";
+  ctx.lineWidth=.65;
+  ctx.beginPath();ctx.moveTo(box.x0,zero);ctx.lineTo(box.x1,zero);ctx.stroke();
+  ctx.font="11px Microsoft YaHei,Arial";
+  ctx.fillStyle="rgba(82,96,113,.76)";
+  ctx.textAlign="left";
+  ctx.fillText(canvas.clientWidth<760?tr("stableEtfFlowShort"):tr("stableEtfFlowAxis"),box.x0+8,zero-8);
+  rows.forEach(r=>{
+    const v=r.stableEtfFlow;
+    if(v==null||!Number.isFinite(v))return;
+    const x=xScale(r.t);
+    if(x<box.x0-barW||x>box.x1+barW)return;
+    const y=zero-(v/maxAbs)*band,top=Math.min(zero,y),height=Math.max(1,Math.abs(zero-y));
+    ctx.fillStyle=v>=0?colors.stableEtfFlowUp:colors.stableEtfFlowDown;
+    ctx.fillRect(x-barW/2,top,barW,height);
+  });
+  ctx.restore();
+}
 function roundRect(x,y,w,h,r){
   const rr=Math.min(r,w/2,h/2);
   ctx.beginPath();
@@ -1344,7 +1381,7 @@ function draw(active,eventDate=null){
   for(let year=startYear;year<=endYear;year++){const x=xScale(new Date(`${year}-01-01T00:00:00Z`).getTime());if(x<x0||x>x1)continue;ctx.fillStyle=colors.muted;ctx.textAlign="center";ctx.fillText(year,x,y1+(isEmbed?23:28))}
   drawAxes();
   ctx.strokeStyle="#cfd8e2";ctx.strokeRect(x0,y0,x1-x0,y1-y0);
-  ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();series.forEach(drawPath);if(priceMode==="candle"){["btc","eth","sol","bnb"].forEach(drawCandles)}ctx.restore();
+  ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();drawStableEtfFlowBars();series.forEach(drawPath);if(priceMode==="candle"){["btc","eth","sol","bnb"].forEach(drawCandles)}ctx.restore();
   if(isEmbed){eventBoxes=[]}else{drawEvents(eventDate)}
   ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText(valueScale==="log"?tr("axisLog"):tr("axisPct"),0,0);ctx.restore();
   ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText(tr("axisSupply"),0,0);ctx.restore();
