@@ -1236,7 +1236,7 @@ const series=[
   {key:"us1y",color:colors.us1y,scale:"rate",width:1.1},
   {key:"treasuryQE",color:colors.treasuryQE,scale:"score",width:1.08}
 ];
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],scaleBoxes=[],modeBoxes=[],period="day",priceMode="line",valueScale="pct",hoverPeriod=null,hoverScale=null,hoverMode=null,hidden={sol:true,bnb:true,btcEthRatio:true,usdt:true,usdc:true,stableEtf:true,us1y:true,treasuryQE:true};
+let box={},zoom=null,drag=null,pan=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],scaleBoxes=[],modeBoxes=[],period="day",priceMode="line",valueScale="pct",hoverPeriod=null,hoverScale=null,hoverMode=null,hidden={sol:true,bnb:true,btcEthRatio:true,usdt:true,usdc:true,stableEtf:true,us1y:true,treasuryQE:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function finite(v){return v!=null&&Number.isFinite(v)}
@@ -1295,6 +1295,18 @@ function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
 function baseRange(){return [rows[0].t,displayEnd()]}
 function currentRange(){return zoom||baseRange()}
+function clampRange(t0,t1){
+  const [b0,b1]=baseRange(),span=t1-t0,full=b1-b0;
+  if(span>=full)return [b0,b1];
+  let start=t0;
+  if(start<b0)start=b0;
+  if(start+span>b1)start=b1-span;
+  return [start,start+span];
+}
+function panRange(startRange,startX,x){
+  const span=startRange[1]-startRange[0],dx=x-startX,delta=-(dx/Math.max(1,box.x1-box.x0))*span;
+  return clampRange(startRange[0]+delta,startRange[1]+delta);
+}
 function visibleRows(){const [t0,t1]=currentRange();const sample=rows.filter(r=>r.t>=t0&&r.t<=t1);return sample.length?sample:rows}
 function resize(){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
 function xScale(t){return box.x0+(t-box.t0)/(box.t1-box.t0)*(box.x1-box.x0)}
@@ -1531,6 +1543,7 @@ function draw(active,eventDate=null){
 function clampX(x){return Math.max(box.x0,Math.min(box.x1,x))}
 function pointer(e){const rect=canvas.getBoundingClientRect();return{x:e.clientX-rect.left,y:e.clientY-rect.top,rect}}
 function inPlot(p){return p.x>=box.x0&&p.x<=box.x1&&p.y>=box.y0&&p.y<=box.y1}
+function inPanArea(p){return zoom&&p.x>=box.x0&&p.x<=box.x1&&p.y>=box.y0&&p.y<=box.y1+38}
 function timeAtX(x){return box.t0+(clampX(x)-box.x0)/(box.x1-box.x0)*(box.t1-box.t0)}
 function hitLegend(p){return legendBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
 function hitEvent(p){return eventBoxes.find(b=>p.x>=b.x0&&p.x<=b.x1&&p.y>=b.y0&&p.y<=b.y1)}
@@ -1573,11 +1586,11 @@ function showTipNow(p){
 }
 function showTip(p){pendingPoint=p;if(hoverFrame)return;hoverFrame=true;requestAnimationFrame(()=>{hoverFrame=false;const next=pendingPoint;pendingPoint=null;if(next)showTipNow(next)})}
 canvas.addEventListener("click",e=>{const p=pointer(e),mode=hitMode(p),scale=hitScale(p),tab=hitPeriod(p);if(mode){priceMode=mode.key;hoverMode=mode.key;clearTip();draw();return}if(scale){valueScale=scale.key;hoverScale=scale.key;clearTip();draw();return}if(tab){period=tab.key;hoverPeriod=tab.key;zoom=null;clearTip();draw();return}const hit=hitLegend(p);if(!hit)return;hidden[hit.key]=!hidden[hit.key];clearTip();draw()});
-canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitMode(p)||hitScale(p)||hitPeriod(p)||!inPlot(p))return;drag={x0:p.x,x1:p.x};clearTip()});
-canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(drag){drag.x1=p.x;clearTip();draw();drawSelection();return}const mode=hitMode(p);if(mode){if(hoverMode!==mode.key){hoverMode=mode.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}const scale=hitScale(p);if(scale){if(hoverScale!==scale.key){hoverScale=scale.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}const tab=hitPeriod(p);if(tab){if(hoverPeriod!==tab.key){hoverPeriod=tab.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}if(hoverMode!==null||hoverScale!==null||hoverPeriod!==null){hoverMode=null;hoverScale=null;hoverPeriod=null;clearTip();draw()}showTip(p)});
-window.addEventListener("mouseup",()=>{if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1);if(Math.abs(x1-x0)>12){const a=timeAtX(x0),b=timeAtX(x1);zoom=[Math.min(a,b),Math.max(a,b)]}drag=null;clearTip();draw()});
-canvas.addEventListener("mouseleave",()=>{if(drag)return;hoverMode=null;hoverScale=null;hoverPeriod=null;clearTip();canvas.style.cursor="default";draw()});
-canvas.addEventListener("dblclick",()=>{zoom=null;drag=null;clearTip();draw()});
+canvas.addEventListener("mousedown",e=>{const p=pointer(e);if(hitLegend(p)||hitMode(p)||hitScale(p)||hitPeriod(p))return;if(inPanArea(p)){pan={x0:p.x,range:[zoom[0],zoom[1]]};canvas.style.cursor="grabbing";clearTip();return}if(!inPlot(p))return;drag={x0:p.x,x1:p.x};clearTip()});
+canvas.addEventListener("mousemove",e=>{const p=pointer(e);if(pan){zoom=panRange(pan.range,pan.x0,p.x);canvas.style.cursor="grabbing";clearTip();draw();return}if(drag){drag.x1=p.x;clearTip();draw();drawSelection();return}const mode=hitMode(p);if(mode){if(hoverMode!==mode.key){hoverMode=mode.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}const scale=hitScale(p);if(scale){if(hoverScale!==scale.key){hoverScale=scale.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}const tab=hitPeriod(p);if(tab){if(hoverPeriod!==tab.key){hoverPeriod=tab.key;clearTip();draw()}canvas.style.cursor="pointer";clearTip();return}if(hoverMode!==null||hoverScale!==null||hoverPeriod!==null){hoverMode=null;hoverScale=null;hoverPeriod=null;clearTip();draw()}canvas.style.cursor=inPanArea(p)?"grab":inPlot(p)?"crosshair":"default";showTip(p)});
+window.addEventListener("mouseup",()=>{if(pan){pan=null;clearTip();draw();return}if(!drag)return;const x0=clampX(drag.x0),x1=clampX(drag.x1);if(Math.abs(x1-x0)>12){const a=timeAtX(x0),b=timeAtX(x1);zoom=clampRange(Math.min(a,b),Math.max(a,b))}drag=null;clearTip();draw()});
+canvas.addEventListener("mouseleave",()=>{if(drag||pan)return;hoverMode=null;hoverScale=null;hoverPeriod=null;clearTip();canvas.style.cursor="default";draw()});
+canvas.addEventListener("dblclick",()=>{zoom=null;drag=null;pan=null;clearTip();draw()});
 window.addEventListener("resize",resize);
 applyLanguageChrome();
 refreshRows();
