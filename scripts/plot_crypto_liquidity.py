@@ -26,6 +26,7 @@ DISPLAY_START = pd.Timestamp("2018-09-01")
 MAX_CACHE_STALENESS_DAYS = 3
 PRICE_SOURCE = "https://min-api.cryptocompare.com/data/v2/histoday"
 STABLECOIN_SOURCE = "https://stablecoins.llama.fi/stablecoincharts/all"
+TREASURY_MSPD_BILLS_SOURCE = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/debt/mspd/mspd_table_1"
 FRED_CSV_SOURCE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 FED_H15_TREASURY_CSV_SOURCE = (
     "https://www.federalreserve.gov/datadownload/Output.aspx?"
@@ -251,6 +252,10 @@ BTC ETF累计净流入显示美国现货 BTC ETF每日净流入的累计值，�
 
 ETF资金和稳定币资金属于不同入口。稳定币偏链上和交易所资金环境，ETF偏传统金融账户资金环境。两者同向时，资金信号更一致；两者背离时，需要结合价格和利率一起看。
 
+USDT+USDC+ETF流入默认隐藏。它用 USDT+USDC 的发行量，加上 BTC ETF 累计净流入并换算成十亿美元，用来观察链上美元和传统金融入口资金是否共同扩张。
+
+Treasury QE 默认隐藏。它用美国可流通 T-Bill 余额计算 12 个月变化，再按当前图表区间做 z-score 标准化。它是用公开债务数据复刻的 T-Bill 发行冲击线，官方没有发布同名现成指标。
+
 ## 美国1Y利率
 
 美国1Y利率默认隐藏。它常用于观察短端美元利率和Fed政策利率路径的变化。
@@ -261,7 +266,7 @@ ETF资金和稳定币资金属于不同入口。稳定币偏链上和交易所�
 
 底部事件包含宏观政策、监管变化、稳定币冲击和ETF相关事件。悬停窗会显示事件日期和当地 UTC±x 时区。例如非农 2026-06-05 使用 UTC-4（美国东部夏令时间）。
 
-事件的作用是给图表提供上下文。判断行情时，需要同时看事件发生前后的价格、稳定币、ETF资金和利率变化。
+事件的作用是给图表提供上下文。判断行情时，需要同时看事件发生前后的价格、稳定币、ETF资金、Treasury QE 和利率变化。
 
 ## 时间
 
@@ -272,7 +277,7 @@ DATA_EXPLANATION_EN_MD = """# USDT Supply and BTC/ETH
 
 ## Purpose
 
-This chart brings together crypto prices, stablecoin supply, BTC ETF flows, the US 1Y yield, and key events. It helps compare price action with the funding backdrop and spot divergences. Event markers add context, but they should not be read as standalone causal proof.
+This chart brings together crypto prices, stablecoin supply, BTC ETF flows, Treasury QE, the US 1Y yield, and key events. It helps compare price action with the funding backdrop and spot divergences. Event markers add context, but they should not be read as standalone causal proof.
 
 ## Prices and Ratio
 
@@ -294,11 +299,15 @@ BTC ETF cumulative net inflow tracks cumulative daily net inflow into US spot BT
 
 ETF money and stablecoin money enter the market through different channels. Stablecoins reflect on-chain and exchange funding conditions, while ETFs reflect traditional-account access to BTC. When both move together, the funding signal is more aligned; when they diverge, price and rates need extra attention.
 
+USDT+USDC+ETF inflow is hidden by default. It adds USDT+USDC supply and cumulative spot BTC ETF net inflow, converted to billions of dollars, to show whether on-chain dollar balances and ETF access are expanding together.
+
+Treasury QE is hidden by default. It takes the 12-month change in US marketable T-Bill outstanding, then normalizes it with a z-score over the chart window. It is a reconstructed T-Bill issuance impulse line; there is no official Treasury or Fed series with this exact name.
+
 ## US 1Y Yield
 
 The US 1Y yield is hidden by default. It is often used to read front-end dollar rates and the Fed policy-rate path.
 
-When the 1Y yield rises, risk assets usually face front-end rate pressure. When it falls, the market may be pricing easier monetary conditions or weaker growth. Price, flows, and rates should be read together.
+When the 1Y yield rises, risk assets usually face front-end rate pressure. When it falls, the market may be pricing easier monetary conditions or weaker growth. Price, flows, Treasury QE, and rates should be read together.
 
 ## Events
 
@@ -454,6 +463,38 @@ def fetch_fred_rate(series_id: str, column: str, start: date, end: date) -> pd.S
     return frame.drop_duplicates("date").sort_values("date").set_index("date")[column]
 
 
+def fetch_treasury_qe(start: date, end: date) -> pd.Series:
+    query = urlencode(
+        {
+            "format": "json",
+            "fields": "record_date,total_mil_amt",
+            "filter": "security_type_desc:eq:Marketable,security_class_desc:eq:Bills",
+            "sort": "record_date",
+            "page[size]": "10000",
+        }
+    )
+    payload = request_json(f"{TREASURY_MSPD_BILLS_SOURCE}?{query}", retries=3, pause=0.35)
+    records = payload.get("data", []) if isinstance(payload, dict) else []
+    frame = pd.DataFrame(records)
+    if frame.empty:
+        raise RuntimeError("Treasury Bills MSPD data is empty")
+    frame = frame.rename(columns={"record_date": "date", "total_mil_amt": "t_bill_outstanding_mil"})
+    frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
+    frame["t_bill_outstanding_b"] = pd.to_numeric(frame["t_bill_outstanding_mil"], errors="coerce") / 1000
+    frame = frame.dropna(subset=["date", "t_bill_outstanding_b"]).drop_duplicates("date").sort_values("date")
+    frame["t_bill_12m_change_b"] = frame["t_bill_outstanding_b"].diff(12)
+    change = frame["t_bill_12m_change_b"]
+    start_ts = pd.Timestamp(start)
+    end_ts = pd.Timestamp(end)
+    chart_change = frame.loc[frame["date"].between(start_ts, end_ts), "t_bill_12m_change_b"].dropna()
+    std = chart_change.std(ddof=0)
+    if not np.isfinite(std) or std == 0:
+        raise RuntimeError("Treasury Bills 12m change has no variance")
+    frame["treasury_qe"] = (change - chart_change.mean()) / std
+    daily_index = pd.date_range(start, end, freq="D")
+    return frame.set_index("date")["treasury_qe"].reindex(daily_index, method="ffill").rename("treasury_qe")
+
+
 def parse_farside_value(value: str) -> float | None:
     value = value.strip()
     if value == "-":
@@ -512,7 +553,7 @@ def fetch_btc_etf_total_flow(start: date, end: date) -> pd.Series:
 
 
 def normalize_optional_macro_columns(data: pd.DataFrame) -> None:
-    for column in ["us_1y"]:
+    for column in ["us_1y", "treasury_qe"]:
         if column not in data.columns:
             data[column] = pd.NA
         data[column] = pd.to_numeric(data[column], errors="coerce").ffill()
@@ -547,10 +588,24 @@ def add_btc_eth_ratio(data: pd.DataFrame) -> None:
     data["btc_eth_ratio"] = btc.where((btc > 0) & (eth > 0)) / eth.where((btc > 0) & (eth > 0))
 
 
+def add_combined_liquidity(data: pd.DataFrame) -> None:
+    if "stable_b" not in data.columns:
+        data["stable_b"] = data[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
+    stable = pd.to_numeric(data["stable_b"], errors="coerce")
+    if "btc_etf_flow" not in data.columns:
+        data["btc_etf_flow"] = 0
+    etf_flow_b = pd.to_numeric(data["btc_etf_flow"], errors="coerce").fillna(0) / 1000
+    data["stable_etf_b"] = stable + etf_flow_b
+
+
 def fetch_optional_macro_series() -> dict[str, pd.Series | None]:
-    series: dict[str, pd.Series | None] = {"us_1y": None}
+    series: dict[str, pd.Series | None] = {"us_1y": None, "treasury_qe": None}
     try:
         series["us_1y"] = fetch_fred_rate("DGS1", "us_1y", START_DATE, END_DATE)
+    except Exception:
+        pass
+    try:
+        series["treasury_qe"] = fetch_treasury_qe(START_DATE, END_DATE)
     except Exception:
         pass
     return series
@@ -622,6 +677,7 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
             normalize_price_columns(cached)
             normalize_price_ohlc_columns(cached)
             add_btc_eth_ratio(cached)
+            add_combined_liquidity(cached)
             add_usdt_indicators(cached)
             return cached.drop(columns=["dxy", "us_rate", "us_2y"], errors="ignore")
         raise
@@ -650,6 +706,7 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
     data["usdt_b"] = data["USDT"] / 1e9
     data["usdc_b"] = data["USDC"] / 1e9
     data["stable_b"] = data[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
+    add_combined_liquidity(data)
     add_usdt_indicators(data)
 
     data.index.name = "date"
@@ -937,7 +994,9 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
                 "usdt": series_value(row.usdt_b, 4),
                 "usdc": series_value(row.usdc_b, 4),
                 "stable": series_value(row.stable_b, 4),
+                "stableEtf": series_value(row.stable_etf_b, 4),
                 "us1y": series_value(row.us_1y, 4),
+                "treasuryQE": series_value(row.treasury_qe, 4),
                 "btcEtfFlow": series_value(row.btc_etf_flow, 2),
                 "transmissionWeek": series_value(row.transmission_week, 4),
                 "transmissionMonth": series_value(row.transmission_month, 4),
@@ -950,7 +1009,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
             "meta": meta,
             "events": MARKET_EVENTS,
             "generatedAt": generated_at,
-            "dataSources": "CryptoCompare、DefiLlama、FRED、Farside Investors",
+            "dataSources": "CryptoCompare、DefiLlama、FRED、Farside Investors、U.S. Treasury Fiscal Data",
         },
         ensure_ascii=False,
         separators=(",", ":"),
@@ -994,12 +1053,12 @@ const homeLink=document.getElementById("homeLink");
 const langSwitch=document.getElementById("langSwitch");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleDownAlpha:.42,usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",us1y:"rgba(248,113,113,.62)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleDownAlpha:.42,usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",stableEtf:"#0f766e",us1y:"rgba(248,113,113,.62)",treasuryQE:"rgba(147,51,234,.74)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const params=new URLSearchParams(location.search);
 let lang=params.get("lang")==="en"?"en":"zh";
 const text={
-  zh:{title:"USDT发行量 与 BTC/ETH",refresh:"刷新时间",sources:"数据来源",explain:"数据解释",home:"返回主页",axisPct:"价格与BTC/ETH比值（起点=0%）",axisLog:"价格与BTC/ETH比值（对数变化）",axisSupply:"USDT / USDC / ETF累计净流入（$B）",time:"时间",type:"类型",open:"开",high:"高",low:"低",close:"收",period_day:"日",period_week:"周",period_month:"月",period_quarter:"季",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH比值",series_usdt:"USDT发行量",series_usdc:"USDC发行量",series_stable:"USDT+USDC",series_btcEtfFlow:"BTC ETF累计净流入",series_us1y:"美国1Y利率",dataSources:"CryptoCompare、DefiLlama、FRED、Farside Investors"},
-  en:{title:"USDT Supply and BTC/ETH",refresh:"Refresh",sources:"Sources",explain:"Data notes",home:"Home",axisPct:"Price and BTC/ETH ratio (start = 0%)",axisLog:"Price and BTC/ETH ratio (log change)",axisSupply:"USDT / USDC / ETF cumulative net inflow ($B)",time:"Time",type:"Type",open:"O",high:"H",low:"L",close:"C",period_day:"D",period_week:"W",period_month:"M",period_quarter:"Q",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH ratio",series_usdt:"USDT supply",series_usdc:"USDC supply",series_stable:"USDT+USDC",series_btcEtfFlow:"Spot BTC ETF cum. net inflow",series_us1y:"US 1Y yield",dataSources:"CryptoCompare, DefiLlama, FRED, Farside Investors"}
+  zh:{title:"USDT发行量 与 BTC/ETH",refresh:"刷新时间",sources:"数据来源",explain:"数据解释",home:"返回主页",axisPct:"价格与BTC/ETH比值（起点=0%）",axisLog:"价格与BTC/ETH比值（对数变化）",axisSupply:"USDT / USDC / ETF累计净流入（$B）",time:"时间",type:"类型",open:"开",high:"高",low:"低",close:"收",period_day:"日",period_week:"周",period_month:"月",period_quarter:"季",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH比值",series_usdt:"USDT发行量",series_usdc:"USDC发行量",series_stable:"USDT+USDC",series_stableEtf:"USDT+USDC+ETF流入",series_btcEtfFlow:"BTC ETF累计净流入",series_us1y:"美国1Y利率",series_treasuryQE:"Treasury QE",dataSources:"CryptoCompare、DefiLlama、FRED、Farside Investors、U.S. Treasury Fiscal Data"},
+  en:{title:"USDT Supply and BTC/ETH",refresh:"Refresh",sources:"Sources",explain:"Data notes",home:"Home",axisPct:"Price and BTC/ETH ratio (start = 0%)",axisLog:"Price and BTC/ETH ratio (log change)",axisSupply:"USDT / USDC / ETF cumulative net inflow ($B)",time:"Time",type:"Type",open:"O",high:"H",low:"L",close:"C",period_day:"D",period_week:"W",period_month:"M",period_quarter:"Q",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH ratio",series_usdt:"USDT supply",series_usdc:"USDC supply",series_stable:"USDT+USDC",series_stableEtf:"USDT+USDC+ETF inflow",series_btcEtfFlow:"Spot BTC ETF cum. net inflow",series_us1y:"US 1Y yield",series_treasuryQE:"Treasury QE",dataSources:"CryptoCompare, DefiLlama, FRED, Farside Investors, U.S. Treasury Fiscal Data"}
 };
 function tr(key){return text[lang]?.[key]||text.zh[key]||key}
 function colon(){return lang==="en"?":":"："}
@@ -1029,10 +1088,12 @@ const series=[
   {key:"usdt",color:colors.usdt,scale:"supply",width:1.15},
   {key:"usdc",color:colors.usdc,scale:"supply",width:1.15},
   {key:"stable",color:colors.stable,scale:"supply",width:1.1},
+  {key:"stableEtf",color:colors.stableEtf,scale:"supply",width:1.08},
   {key:"btcEtfFlow",color:colors.btcEtfFlow,scale:"supply",width:1.05,valueDivisor:1000},
-  {key:"us1y",color:colors.us1y,scale:"rate",width:1.1}
+  {key:"us1y",color:colors.us1y,scale:"rate",width:1.1},
+  {key:"treasuryQE",color:colors.treasuryQE,scale:"score",width:1.08}
 ];
-let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],scaleBoxes=[],modeBoxes=[],period="day",priceMode="line",valueScale="pct",hoverPeriod=null,hoverScale=null,hoverMode=null,hidden={sol:true,bnb:true,btcEthRatio:true,usdt:true,usdc:true,us1y:true};
+let box={},zoom=null,drag=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],scaleBoxes=[],modeBoxes=[],period="day",priceMode="line",valueScale="pct",hoverPeriod=null,hoverScale=null,hoverMode=null,hidden={sol:true,bnb:true,btcEthRatio:true,usdt:true,usdc:true,stableEtf:true,us1y:true,treasuryQE:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function finite(v){return v!=null&&Number.isFinite(v)}
@@ -1074,6 +1135,7 @@ function b(v){return v==null?"-":Number(v).toFixed(2)+"B"}
 function signedB(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"")+n.toFixed(2)+"B"}
 function signedPct(v){if(v==null)return "-";const n=Number(v);return (n>0?"+":"")+n.toFixed(2)+"%"}
 function ratePct(v){return v==null?"-":Number(v).toFixed(2)+"%"}
+function scoreValue(v){return v==null?"-":Number(v).toFixed(2)}
 function flowValue(v){if(v==null)return "-";const n=Number(v),sign=n>0?"+":"";return Math.abs(n)>=1000?sign+"$"+(n/1000).toFixed(2)+"B":sign+"$"+n.toFixed(1)+"M"}
 function pct(v,d=1){return v==null?"-":Number(v).toLocaleString("en-US",{maximumFractionDigits:d,minimumFractionDigits:d})+"%"}
 function axisPct(v){if(v==null)return "-";const n=Math.round(Number(v));return n===0?"0%":(n>0?"+":"")+n.toLocaleString("en-US")+"%"}
@@ -1081,7 +1143,7 @@ function ratioValue(item,r,suffix=""){const key=item.candle||item.key,base=ratio
 function plotValue(item,r){const v=item.scale==="ratio"?ratioValue(item,r):r[item.key];return v!=null&&item.valueDivisor?v/item.valueDivisor:v}
 function wrapNote(text){return lang==="en"?` (${text})`:`（${text}）`}
 function ohlcText(item,r){const key=item.candle;return `${tr("open")} ${usd(r[`${key}Open`])} / ${tr("high")} ${usd(r[`${key}High`])} / ${tr("low")} ${usd(r[`${key}Low`])} / ${tr("close")} ${usd(r[key])}`}
-function valueText(item,r){if(item.scale==="ratio"){const daily=r[dailyKey(item.key)];if(r[item.key]==null)return "-";if(item.kind==="candle"&&priceMode==="candle")return `${ohlcText({candle:item.key},r)}${wrapNote(signedPct(daily))}`;if(item.format==="number")return Number(r[item.key]).toFixed(2)+wrapNote(signedPct(daily));return usd(r[item.key])+wrapNote(signedPct(daily))}if(item.key==="btcEtfFlow")return flowValue(r[item.key]);if(item.scale==="rate")return ratePct(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
+function valueText(item,r){if(item.scale==="ratio"){const daily=r[dailyKey(item.key)];if(r[item.key]==null)return "-";if(item.kind==="candle"&&priceMode==="candle")return `${ohlcText({candle:item.key},r)}${wrapNote(signedPct(daily))}`;if(item.format==="number")return Number(r[item.key]).toFixed(2)+wrapNote(signedPct(daily));return usd(r[item.key])+wrapNote(signedPct(daily))}if(item.key==="btcEtfFlow")return flowValue(r[item.key]);if(item.scale==="rate")return ratePct(r[item.key]);if(item.scale==="score")return scoreValue(r[item.key]);return item.scale==="dev"?signedB(r[item.key]):b(r[item.key])}
 function extentValues(item,r){return item.kind==="candle"&&priceMode==="candle"?["Open","High","Low",""].map(s=>ratioValue(item,r,s)):[plotValue(item,r)]}
 function extent(keys,list=rows){const a=keys.flatMap(k=>{const item=series.find(s=>s.key===k);return list.flatMap(r=>extentValues(item,r)).filter(finite)});return a.length?[Math.min(...a),Math.max(...a)]:[0,1]}
 function activeKeys(scale,allKeys){const keys=series.filter(s=>s.scale===scale&&!hidden[s.key]).map(s=>s.key);return keys.length?keys:allKeys}
@@ -1093,7 +1155,8 @@ function xScale(t){return box.x0+(t-box.t0)/(box.t1-box.t0)*(box.x1-box.x0)}
 function yRatio(v){return box.y1-(v-box.ratioMin)/(box.ratioMax-box.ratioMin)*(box.y1-box.y0)}
 function ySupply(v){return box.y1-(v-box.supplyMin)/(box.supplyMax-box.supplyMin)*(box.y1-box.y0)}
 function yRate(v){return box.y1-(v-box.rateMin)/(box.rateMax-box.rateMin)*(box.y1-box.y0)}
-function yFor(item,v){if(item.scale==="ratio")return yRatio(v);if(item.scale==="rate")return yRate(v);return ySupply(v)}
+function yScore(v){return box.y1-(v-box.scoreMin)/(box.scoreMax-box.scoreMin)*(box.y1-box.y0)}
+function yFor(item,v){if(item.scale==="ratio")return yRatio(v);if(item.scale==="rate")return yRate(v);if(item.scale==="score")return yScore(v);return ySupply(v)}
 function gridLine(y){ctx.strokeStyle=colors.grid;ctx.lineWidth=.65;ctx.beginPath();ctx.moveTo(box.x0,y);ctx.lineTo(box.x1,y);ctx.stroke()}
 function niceTicks(min,max,n){const span=Math.max(1e-9,max-min),raw=span/Math.max(1,n),pow=Math.pow(10,Math.floor(Math.log10(raw))),base=[1,2,5,10].find(x=>x*pow>=raw)*pow,start=Math.ceil(min/base)*base,out=[];for(let v=start;v<=max+base*.5;v+=base)out.push(v);return out}
 function drawLegend(x,y,maxX){
@@ -1194,6 +1257,10 @@ function drawAxes(){
   niceTicks(box.ratioMin,box.ratioMax,6).forEach(v=>{const y=yRatio(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(axisPct(v),box.x0-9,y+4)});
   [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
   if(!hidden.us1y)[box.rateMin,(box.rateMin+box.rateMax)/2,box.rateMax].forEach(v=>{const y=yRate(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.us1y;ctx.textAlign="left";ctx.fillText(ratePct(v),box.x1+68,y+4)});
+  if(!hidden.treasuryQE){
+    const scoreX=box.x1+(hidden.us1y?68:108);
+    niceTicks(box.scoreMin,box.scoreMax,4).forEach(v=>{const y=yScore(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.treasuryQE;ctx.textAlign="left";ctx.fillText(scoreValue(v),scoreX,y+4)});
+  }
 }
 function drawCandles(key){
   if(hidden[key])return;
@@ -1248,12 +1315,14 @@ function drawEvents(activeEventDate=null){
 function draw(active,eventDate=null){
   refreshRows();
   const w=canvas.clientWidth,h=canvas.clientHeight,outer=Math.round(Math.min(w,h)*.035),compactHeader=w<760;
-  const axisLeft=76,axisRight=86,titleY=outer+14,legendY=outer+(compactHeader?(isEmbed?56:116):46),xLabelGap=isEmbed?32:38;
+  const macroAxisCount=(hidden.us1y?0:1)+(hidden.treasuryQE?0:1);
+  const axisLeft=76,axisRight=86+Math.max(0,macroAxisCount-1)*38,titleY=outer+14,legendY=outer+(compactHeader?(isEmbed?56:116):46),xLabelGap=isEmbed?32:38;
   const x0=outer+axisLeft,x1=w-outer-axisRight,y0=outer+(compactHeader?(isEmbed?136:230):(isEmbed?76:82)),y1=h-outer-xLabelGap;
   const [t0,t1]=currentRange(),sample=visibleRows();
   const [ratioMin0,ratioMax0]=extent(activeKeys("ratio",["btc","eth"]),sample),ratioPad=Math.max((ratioMax0-ratioMin0)*.12,8);
-  const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable","btcEtfFlow"]),sample);
+  const [supplyMin0,supplyMax0]=extent(activeKeys("supply",["usdt","usdc","stable","stableEtf","btcEtfFlow"]),sample);
   const [rateMin0,rateMax0]=extent(activeKeys("rate",["us1y"]),sample),ratePad=Math.max((rateMax0-rateMin0)*.18,.15);
+  const [scoreMin0,scoreMax0]=extent(activeKeys("score",["treasuryQE"]),sample),scorePad=Math.max((scoreMax0-scoreMin0)*.18,.35);
   let ratioMin=Math.min(ratioMin0-ratioPad,0),ratioMax=Math.max(ratioMax0+ratioPad,10);
   const zeroFloorFraction=.16,ratioFloorMin=-(zeroFloorFraction*ratioMax)/(1-zeroFloorFraction);
   ratioMin=Math.min(ratioMin,ratioFloorMin);
@@ -1263,7 +1332,7 @@ function draw(active,eventDate=null){
     supplyMin=supplyMin0*1.1;
     supplyMax=Math.max(supplyMax,(-supplyMin)*(1-zeroFraction)/zeroFraction);
   }
-  box={x0,x1,y0,y1,t0,t1,ratioMin,ratioMax,supplyMin,supplyMax,rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad};
+  box={x0,x1,y0,y1,t0,t1,ratioMin,ratioMax,supplyMin,supplyMax,rateMin:rateMin0-ratePad,rateMax:rateMax0+ratePad,scoreMin:scoreMin0-scorePad,scoreMax:scoreMax0+scorePad};
   ctx.clearRect(0,0,w,h);ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
   ctx.fillStyle=colors.text;ctx.font="700 21px Microsoft YaHei,Arial";ctx.textAlign="center";ctx.fillText(tr("title"),w/2,titleY);
   const periodWidth=170,scaleWidth=82,modeWidth=74,controlY=compactHeader?titleY+18:titleY-18;
