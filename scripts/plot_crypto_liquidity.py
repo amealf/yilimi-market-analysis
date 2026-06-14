@@ -21,10 +21,11 @@ from mobile_chart_support import add_canvas_mobile_support
 
 
 START_DATE = date(2015, 8, 7)
-END_DATE = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+END_DATE = datetime.now(timezone.utc).date()
 DISPLAY_START = pd.Timestamp("2018-09-01")
 MAX_CACHE_STALENESS_DAYS = 3
 PRICE_SOURCE = "https://min-api.cryptocompare.com/data/v2/histoday"
+BINANCE_PRICE_SOURCES = ["https://data-api.binance.vision/api/v3/klines", "https://api.binance.com/api/v3/klines"]
 STABLECOIN_SOURCE = "https://stablecoins.llama.fi/stablecoincharts/all"
 TREASURY_MSPD_BILLS_SOURCE = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/debt/mspd/mspd_table_1"
 FRED_CSV_SOURCE = "https://fred.stlouisfed.org/graph/fredgraph.csv"
@@ -35,6 +36,7 @@ FED_H15_TREASURY_CSV_SOURCE = (
 )
 FARSIDE_BTC_ETF_FLOW_SOURCE = "https://r.jina.ai/http://r.jina.ai/http://https://farside.co.uk/bitcoin-etf-flow-all-data/"
 PRICE_SYMBOLS = ["BTC", "ETH", "SOL", "BNB"]
+BINANCE_PRICE_SYMBOLS = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT", "BNB": "BNBUSDT"}
 MARKET_EVENTS = [
     {
         "date": "2020-03-15",
@@ -419,7 +421,156 @@ def fetch_price(symbol: str, column: str, start: date, end: date) -> pd.DataFram
         (frame["date"] >= pd.Timestamp(start)) & (frame["date"] <= pd.Timestamp(end)),
         ["date", *output_columns],
     ]
-    return frame.drop_duplicates("date").sort_values("date").set_index("date")
+    frame = frame.drop_duplicates("date").sort_values("date").set_index("date")
+    frame.attrs["price_source"] = "CryptoCompare"
+    return frame
+
+
+def fetch_binance_price(symbol: str, column: str, start: date, end: date) -> pd.DataFrame:
+    binance_symbol = BINANCE_PRICE_SYMBOLS[symbol]
+    output_columns = [f"{column}_open", f"{column}_high", f"{column}_low", column]
+    rows: list[dict[str, object]] = []
+    start_ms = to_timestamp(start) * 1000
+    end_ms = to_timestamp(end) * 1000
+
+    for source in BINANCE_PRICE_SOURCES:
+        rows.clear()
+        cursor = start_ms
+        try:
+            while cursor <= end_ms:
+                query = urlencode(
+                    {
+                        "symbol": binance_symbol,
+                        "interval": "1d",
+                        "startTime": cursor,
+                        "endTime": end_ms,
+                        "limit": 1000,
+                    }
+                )
+                payload = request_json(f"{source}?{query}", retries=2, pause=0.5)
+                if not isinstance(payload, list) or not payload:
+                    break
+                for item in payload:
+                    if not isinstance(item, list) or len(item) < 5:
+                        continue
+                    rows.append(
+                        {
+                            "time": int(item[0]),
+                            f"{column}_open": item[1],
+                            f"{column}_high": item[2],
+                            f"{column}_low": item[3],
+                            column: item[4],
+                        }
+                    )
+                cursor = int(payload[-1][0]) + 86_400_000
+                time.sleep(0.15)
+            if rows:
+                break
+        except Exception:
+            rows.clear()
+            continue
+
+    if not rows:
+        raise RuntimeError(f"{symbol} Binance price data is empty")
+
+    frame = pd.DataFrame(rows)
+    frame["date"] = pd.to_datetime(frame["time"], unit="ms", utc=True).dt.tz_localize(None).dt.normalize()
+    for target in output_columns:
+        frame[target] = pd.to_numeric(frame[target], errors="coerce")
+    frame = frame.loc[frame[output_columns].gt(0).all(axis=1)]
+    frame = frame.loc[
+        (frame["date"] >= pd.Timestamp(start)) & (frame["date"] <= pd.Timestamp(end)),
+        ["date", *output_columns],
+    ]
+    frame = frame.drop_duplicates("date").sort_values("date").set_index("date")
+    frame.attrs["price_source"] = "Binance"
+    return frame
+
+
+def fetch_price_with_fallback(symbol: str, column: str, start: date, end: date) -> pd.DataFrame:
+    try:
+        return fetch_price(symbol, column, start, end)
+    except Exception:
+        return fetch_binance_price(symbol, column, start, end)
+
+
+def merge_cached_price_history(
+    fresh: pd.DataFrame,
+    cached: pd.DataFrame | None,
+    symbol: str,
+    column: str,
+) -> pd.DataFrame:
+    if fresh.attrs.get("price_source") != "Binance" or cached is None or "date" not in cached.columns:
+        return fresh
+
+    columns = [f"{column}_open", f"{column}_high", f"{column}_low", column]
+    if not all(item in cached.columns for item in columns):
+        return fresh
+
+    cached_price = cached[["date", *columns]].copy()
+    cached_price["date"] = pd.to_datetime(cached_price["date"], errors="coerce")
+    for item in columns:
+        cached_price[item] = pd.to_numeric(cached_price[item], errors="coerce")
+    cached_price = cached_price.dropna(subset=["date", symbol]).set_index("date").sort_index()
+    if cached_price.empty:
+        return fresh
+
+    latest_cached_date = cached_price.index.max()
+    fresh_tail = fresh.loc[fresh.index > latest_cached_date]
+    combined = pd.concat([cached_price, fresh_tail]).sort_index()
+    combined = combined.loc[~combined.index.duplicated(keep="last")]
+    combined.attrs["price_source"] = "CryptoCompare/Binance"
+    return combined
+
+
+def cached_price_history(cached: pd.DataFrame | None, symbol: str, column: str) -> pd.DataFrame:
+    if cached is None or "date" not in cached.columns:
+        raise RuntimeError(f"{symbol} cache data is missing")
+    columns = [f"{column}_open", f"{column}_high", f"{column}_low", column]
+    if not all(item in cached.columns for item in columns):
+        raise RuntimeError(f"{symbol} cache data is missing")
+    frame = cached[["date", *columns]].copy()
+    frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
+    for item in columns:
+        frame[item] = pd.to_numeric(frame[item], errors="coerce")
+    frame = frame.dropna(subset=["date", symbol]).set_index("date").sort_index()
+    if frame.empty:
+        raise RuntimeError(f"{symbol} cache data is empty")
+    frame.attrs["price_source"] = "Cache"
+    return frame
+
+
+def fetch_price_series(symbol: str, column: str, start: date, end: date, cached: pd.DataFrame | None) -> pd.DataFrame:
+    try:
+        fresh = fetch_price_with_fallback(symbol, column, start, end)
+        return merge_cached_price_history(fresh, cached, symbol, column)
+    except Exception:
+        return cached_price_history(cached, symbol, column)
+
+
+def cached_stablecoin_supply(cached: pd.DataFrame | None, column: str) -> pd.Series:
+    if cached is None or "date" not in cached.columns or column not in cached.columns:
+        raise RuntimeError(f"{column} cache data is missing")
+    frame = cached[["date", column]].copy()
+    frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
+    frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    frame = frame.dropna(subset=["date", column]).set_index("date").sort_index()
+    if frame.empty:
+        raise RuntimeError(f"{column} cache data is empty")
+    return frame[column]
+
+
+def fetch_stablecoin_supply_with_cache(
+    stablecoin_id: int,
+    column: str,
+    start: date,
+    end: date,
+    cached: pd.DataFrame | None,
+) -> pd.Series:
+    try:
+        return fetch_stablecoin_supply(stablecoin_id, column, start, end)
+    except Exception:
+        return cached_stablecoin_supply(cached, column)
 
 
 def fetch_stablecoin_supply(stablecoin_id: int, column: str, start: date, end: date) -> pd.Series:
@@ -657,31 +808,14 @@ def add_usdt_indicators(data: pd.DataFrame) -> None:
 
 
 def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
-    try:
-        btc = fetch_price("BTC", "BTC", START_DATE, END_DATE)
-        eth = fetch_price("ETH", "ETH", START_DATE, END_DATE)
-        sol = fetch_price("SOL", "SOL", START_DATE, END_DATE)
-        bnb = fetch_price("BNB", "BNB", START_DATE, END_DATE)
-        usdt = fetch_stablecoin_supply(1, "USDT", START_DATE, END_DATE)
-        usdc = fetch_stablecoin_supply(2, "USDC", START_DATE, END_DATE)
-    except Exception as exc:
-        if cache_path and cache_path.exists():
-            cached = pd.read_csv(cache_path, parse_dates=["date"])
-            if "stable_b" not in cached.columns:
-                cached["stable_b"] = cached[["usdt_b", "usdc_b"]].sum(axis=1, min_count=1)
-            normalize_optional_macro_columns(cached)
-            for column, macro in fetch_optional_macro_series().items():
-                if macro is not None:
-                    cached[column] = pd.to_datetime(cached["date"]).map(macro)
-            normalize_optional_macro_columns(cached)
-            normalize_btc_etf_flow_column(cached)
-            normalize_price_columns(cached)
-            normalize_price_ohlc_columns(cached)
-            add_btc_eth_ratio(cached)
-            add_combined_liquidity(cached)
-            add_usdt_indicators(cached)
-            return cached.drop(columns=["dxy", "us_rate", "us_2y"], errors="ignore")
-        raise
+    cached_source = pd.read_csv(cache_path, parse_dates=["date"]) if cache_path and cache_path.exists() else None
+    btc = fetch_price_series("BTC", "BTC", START_DATE, END_DATE, cached_source)
+    eth = fetch_price_series("ETH", "ETH", START_DATE, END_DATE, cached_source)
+    sol = fetch_price_series("SOL", "SOL", START_DATE, END_DATE, cached_source)
+    bnb = fetch_price_series("BNB", "BNB", START_DATE, END_DATE, cached_source)
+    price_sources = {frame.attrs.get("price_source", "CryptoCompare") for frame in [btc, eth, sol, bnb]}
+    usdt = fetch_stablecoin_supply_with_cache(1, "USDT", START_DATE, END_DATE, cached_source)
+    usdc = fetch_stablecoin_supply_with_cache(2, "USDC", START_DATE, END_DATE, cached_source)
 
     macro_series = fetch_optional_macro_series()
     btc_etf_flow = fetch_optional_btc_etf_flow()
@@ -711,7 +845,9 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
     add_usdt_indicators(data)
 
     data.index.name = "date"
-    return data.reset_index()
+    output = data.reset_index()
+    output.attrs["price_source_label"] = "/".join(sorted(price_sources))
+    return output
 
 
 def first_valid_date(data: pd.DataFrame, column: str) -> str:
@@ -753,6 +889,11 @@ def chart_meta(data: pd.DataFrame) -> dict:
             {"label": "USDC发行量", "value": f"${float(latest_usdc['USDC']) / 1e9:.2f}B", "date": str(latest_usdc["date"].date())},
         ],
     }
+
+
+def data_sources_label(data: pd.DataFrame) -> str:
+    price_source = data.attrs.get("price_source_label") or "CryptoCompare/Binance"
+    return f"{price_source}、DefiLlama、FRED、Farside Investors、U.S. Treasury Fiscal Data"
 
 
 def series_value(value: object, digits: int = 4) -> float | None:
@@ -1011,7 +1152,7 @@ def write_interactive_html(data: pd.DataFrame, output_html: Path) -> None:
             "meta": meta,
             "events": MARKET_EVENTS,
             "generatedAt": generated_at,
-            "dataSources": "CryptoCompare、DefiLlama、FRED、Farside Investors、U.S. Treasury Fiscal Data",
+            "dataSources": data_sources_label(data),
         },
         ensure_ascii=False,
         separators=(",", ":"),
@@ -1059,8 +1200,8 @@ const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5c
 const params=new URLSearchParams(location.search);
 let lang=params.get("lang")==="en"?"en":"zh";
 const text={
-  zh:{title:"USDT发行量 与 BTC/ETH",refresh:"刷新时间",sources:"数据来源",explain:"数据解释",home:"返回主页",axisPct:"价格与BTC/ETH比值（起点=0%）",axisLog:"价格与BTC/ETH比值（对数变化）",axisSupply:"USDT / USDC / ETF累计净流入（$B）",stableEtfFlowAxis:"USDT+USDC+ETF净流入（$B）",stableEtfFlowShort:"净流入（$B）",time:"时间",type:"类型",open:"开",high:"高",low:"低",close:"收",period_day:"日",period_week:"周",period_month:"月",period_quarter:"季",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH比值",series_usdt:"USDT发行量",series_usdc:"USDC发行量",series_stable:"USDT+USDC",series_stableEtf:"USDT+USDC+ETF流入",series_btcEtfFlow:"BTC ETF累计净流入",series_us1y:"美国1Y利率",series_treasuryQE:"Treasury QE",dataSources:"CryptoCompare、DefiLlama、FRED、Farside Investors、U.S. Treasury Fiscal Data"},
-  en:{title:"USDT Supply and BTC/ETH",refresh:"Refresh",sources:"Sources",explain:"Data notes",home:"Home",axisPct:"Price and BTC/ETH ratio (start = 0%)",axisLog:"Price and BTC/ETH ratio (log change)",axisSupply:"USDT / USDC / ETF cumulative net inflow ($B)",stableEtfFlowAxis:"USDT+USDC+ETF net flow ($B)",stableEtfFlowShort:"Net flow ($B)",time:"Time",type:"Type",open:"O",high:"H",low:"L",close:"C",period_day:"D",period_week:"W",period_month:"M",period_quarter:"Q",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH ratio",series_usdt:"USDT supply",series_usdc:"USDC supply",series_stable:"USDT+USDC",series_stableEtf:"USDT+USDC+ETF inflow",series_btcEtfFlow:"Spot BTC ETF cum. net inflow",series_us1y:"US 1Y yield",series_treasuryQE:"Treasury QE",dataSources:"CryptoCompare, DefiLlama, FRED, Farside Investors, U.S. Treasury Fiscal Data"}
+  zh:{title:"USDT发行量 与 BTC/ETH",refresh:"刷新时间",sources:"数据来源",explain:"数据解释",home:"返回主页",axisPct:"价格与BTC/ETH比值（起点=0%）",axisLog:"价格与BTC/ETH比值（对数变化）",axisSupply:"USDT / USDC / ETF累计净流入（$B）",stableEtfFlowAxis:"USDT+USDC+ETF净流入（$B）",stableEtfFlowShort:"净流入（$B）",time:"时间",type:"类型",open:"开",high:"高",low:"低",close:"收",period_day:"日",period_week:"周",period_month:"月",period_quarter:"季",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH比值",series_usdt:"USDT发行量",series_usdc:"USDC发行量",series_stable:"USDT+USDC",series_stableEtf:"USDT+USDC+ETF流入",series_btcEtfFlow:"BTC ETF累计净流入",series_us1y:"美国1Y利率",series_treasuryQE:"Treasury QE",dataSources:"CryptoCompare/Binance、DefiLlama、FRED、Farside Investors、U.S. Treasury Fiscal Data"},
+  en:{title:"USDT Supply and BTC/ETH",refresh:"Refresh",sources:"Sources",explain:"Data notes",home:"Home",axisPct:"Price and BTC/ETH ratio (start = 0%)",axisLog:"Price and BTC/ETH ratio (log change)",axisSupply:"USDT / USDC / ETF cumulative net inflow ($B)",stableEtfFlowAxis:"USDT+USDC+ETF net flow ($B)",stableEtfFlowShort:"Net flow ($B)",time:"Time",type:"Type",open:"O",high:"H",low:"L",close:"C",period_day:"D",period_week:"W",period_month:"M",period_quarter:"Q",series_btc:"BTC",series_eth:"ETH",series_sol:"SOL",series_bnb:"BNB",series_btcEthRatio:"BTC/ETH ratio",series_usdt:"USDT supply",series_usdc:"USDC supply",series_stable:"USDT+USDC",series_stableEtf:"USDT+USDC+ETF inflow",series_btcEtfFlow:"Spot BTC ETF cum. net inflow",series_us1y:"US 1Y yield",series_treasuryQE:"Treasury QE",dataSources:"CryptoCompare/Binance, DefiLlama, FRED, Farside Investors, U.S. Treasury Fiscal Data"}
 };
 function tr(key){return text[lang]?.[key]||text.zh[key]||key}
 function colon(){return lang==="en"?":":"："}
@@ -1070,7 +1211,7 @@ function applyLanguageChrome(){
   document.documentElement.lang=lang==="en"?"en":"zh-CN";
   document.title=tr("title");
   if(homeLink){homeLink.setAttribute("aria-label",tr("home"));homeLink.setAttribute("title",tr("home"))}
-  if(footerNote)footerNote.innerHTML=`<span>${tr("refresh")}${colon()} UTC+8 ${P.generatedAt}</span><span>${tr("sources")}${colon()} ${tr("dataSources")}</span><a href="usdt-speed-indicator-data-explained.html?lang=${lang}" target="_blank" rel="noopener">${tr("explain")}</a>`;
+  if(footerNote)footerNote.innerHTML=`<span>${tr("refresh")}${colon()} UTC+8 ${P.generatedAt}</span><span>${tr("sources")}${colon()} ${P.dataSources||tr("dataSources")}</span><a href="usdt-speed-indicator-data-explained.html?lang=${lang}" target="_blank" rel="noopener">${tr("explain")}</a>`;
   if(langSwitch)langSwitch.textContent=lang==="en"?"中":"EN";
 }
 if(langSwitch)langSwitch.addEventListener("click",()=>{

@@ -21,7 +21,7 @@ CONFIG_PATH = ROOT / "charts.yml"
 DATA_SOURCES = "东方财富、新浪财经、CryptoCompare、DefiLlama、Binance、KOFIA FreeSIS、FinMind、TWSE、Yahoo Finance、Naver Finance、CNBC、TradingView、ICE、CSV"
 CATEGORY_SOURCES = {
     "a-share-margin": "东方财富、新浪财经、KOFIA FreeSIS、FinMind、TWSE、Yahoo Finance、Naver Finance、TradingView",
-    "crypto-liquidity": "CryptoCompare、DefiLlama",
+    "crypto-liquidity": "CryptoCompare、Binance、DefiLlama、FRED、Farside Investors、U.S. Treasury Fiscal Data",
     "intraday-analysis": "Binance",
     "other-markets": "TradingView、ICE、CSV",
     "global-rates": "CNBC、TradingView",
@@ -89,6 +89,8 @@ def build_usdt_speed_indicator(chart: dict) -> dict:
     source_cache_path = ROOT / chart["output_csv"]
     data = module.build_indicator_frame(cache_path=source_cache_path if source_cache_path.exists() else csv_path)
     data.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    source_cache_path.parent.mkdir(parents=True, exist_ok=True)
+    data.to_csv(source_cache_path, index=False, encoding="utf-8-sig")
     module.write_interactive_html(data, html_path)
     return module.chart_meta(data)
 
