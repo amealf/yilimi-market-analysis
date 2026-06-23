@@ -21,7 +21,7 @@ from mobile_chart_support import add_canvas_mobile_support
 
 
 START_DATE = date(2015, 8, 7)
-END_DATE = datetime.now(timezone.utc).date() - timedelta(days=1)
+END_DATE = datetime.now(timezone.utc).date()
 DISPLAY_START = pd.Timestamp("2018-09-01")
 MAX_CACHE_STALENESS_DAYS = 3
 PRICE_SOURCE = "https://min-api.cryptocompare.com/data/v2/histoday"
@@ -34,7 +34,7 @@ FED_H15_TREASURY_CSV_SOURCE = (
     "rel=H15&series=bf17364827e38702b42a58cf8eaa3f78&lastobs=&from=&to=&filetype=csv&"
     "label=include&layout=seriescolumn&type=package"
 )
-FARSIDE_BTC_ETF_FLOW_SOURCE = "https://r.jina.ai/http://r.jina.ai/http://https://farside.co.uk/bitcoin-etf-flow-all-data/"
+FARSIDE_BTC_ETF_FLOW_SOURCE = "https://r.jina.ai/http://https://farside.co.uk/bitcoin-etf-flow-all-data/"
 PRICE_SYMBOLS = ["BTC", "ETH", "SOL", "BNB"]
 BINANCE_PRICE_SYMBOLS = {"BTC": "BTCUSDT", "ETH": "ETHUSDT", "SOL": "SOLUSDT", "BNB": "BNBUSDT"}
 MARKET_EVENTS = [
@@ -770,6 +770,23 @@ def fetch_optional_btc_etf_flow() -> pd.Series | None:
         return None
 
 
+def cached_btc_etf_flow(cached_source: pd.DataFrame | None) -> pd.Series | None:
+    if cached_source is None or "btc_etf_flow" not in cached_source.columns:
+        return None
+    frame = cached_source[["date", "btc_etf_flow"]].copy()
+    frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
+    frame["btc_etf_flow"] = pd.to_numeric(frame["btc_etf_flow"], errors="coerce")
+    frame = frame.dropna(subset=["date", "btc_etf_flow"])
+    if frame.empty:
+        return None
+    return (
+        frame.drop_duplicates("date", keep="last")
+        .sort_values("date")
+        .set_index("date")["btc_etf_flow"]
+        .rename("btc_etf_flow")
+    )
+
+
 def add_transmission_index(data: pd.DataFrame) -> None:
     if "date" in data.columns:
         source = data[["date", "BTC", "usdt_b"]].copy()
@@ -819,6 +836,8 @@ def build_indicator_frame(cache_path: Path | None = None) -> pd.DataFrame:
 
     macro_series = fetch_optional_macro_series()
     btc_etf_flow = fetch_optional_btc_etf_flow()
+    if btc_etf_flow is None:
+        btc_etf_flow = cached_btc_etf_flow(cached_source)
     index = pd.date_range(START_DATE, END_DATE, freq="D")
     data = pd.DataFrame(index=index)
     data = data.join(btc).join(eth).join(sol).join(bnb).join(usdt).join(usdc)
@@ -876,7 +895,7 @@ def chart_meta(data: pd.DataFrame) -> dict:
     sol_start = first_valid_date(data, "SOL")
     bnb_start = first_valid_date(data, "BNB")
     return {
-        "latestDate": str(max(latest_btc["date"], latest_usdt["date"]).date()),
+        "latestDate": str(max(latest_btc["date"], latest_eth["date"], latest_usdt["date"]).date()),
         "btc": round(float(latest_btc["BTC"]), 2),
         "eth": round(float(latest_eth["ETH"]), 2),
         "usdt": round(float(latest_usdt["USDT"]) / 1e9, 2),
