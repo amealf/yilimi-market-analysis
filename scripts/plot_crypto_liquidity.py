@@ -244,7 +244,7 @@ BTC/ETH比值默认隐藏。它用 BTC价格 / ETH价格 计算，用来观察 B
 
 ## 稳定币规模
 
-USDT、USDC和USDT+USDC使用十亿美元为单位。USDT+USDC默认显示，可以作为链上美元存量的参考。
+USDT、USDC和USDT+USDC使用十亿美元为单位。USDT+USDC默认隐藏，可以作为链上美元存量的参考。
 
 稳定币规模变化通常比价格慢。规模扩张时，说明链上可用美元存量增加；规模收缩时，说明链上美元存量减少。它更适合观察中期资金环境，不适合解释每一天的价格波动。
 
@@ -254,7 +254,7 @@ BTC ETF累计净流入显示美国现货 BTC ETF每日净流入的累计值，�
 
 ETF资金和稳定币资金属于不同入口。稳定币偏链上和交易所资金环境，ETF偏传统金融账户资金环境。两者同向时，资金信号更一致；两者背离时，需要结合价格和利率一起看。
 
-USDT+USDC+ETF流入默认隐藏。它用 USDT+USDC 的发行量，加上 BTC ETF 累计净流入并换算成十亿美元，用来观察链上美元和传统金融入口资金是否共同扩张。开启这条线后，零轴附近会用绿柱和红柱显示当日净流入或净流出。
+USDT+USDC+ETF流入默认显示。它用 USDT+USDC 的发行量，加上 BTC ETF 累计净流入并换算成十亿美元，用来观察链上美元和传统金融入口资金是否共同扩张。开启这条线后，零轴附近会用绿柱和红柱显示当日净流入或净流出。
 
 Treasury QE 默认隐藏。它用美国可流通 T-Bill 余额计算 12 个月变化，再按当前图表区间做 z-score 标准化。它是用公开债务数据复刻的 T-Bill 发行冲击线，官方没有发布同名现成指标。
 
@@ -291,7 +291,7 @@ The BTC/ETH ratio is hidden by default. It is calculated as BTC price / ETH pric
 
 ## Stablecoin Supply
 
-USDT, USDC, and USDT+USDC are shown in billions of dollars. USDT+USDC is visible by default and can be used as a reference for on-chain dollar balances.
+USDT, USDC, and USDT+USDC are shown in billions of dollars. USDT+USDC is hidden by default and can be used as a reference for on-chain dollar balances.
 
 Stablecoin supply usually changes more slowly than prices. Expansion points to more on-chain dollar balances; contraction points to fewer on-chain dollar balances. It is better for reading the medium-term funding backdrop than for explaining every daily price move.
 
@@ -301,7 +301,7 @@ BTC ETF cumulative net inflow tracks cumulative daily net inflow into US spot BT
 
 ETF money and stablecoin money enter the market through different channels. Stablecoins reflect on-chain and exchange funding conditions, while ETFs reflect traditional-account access to BTC. When both move together, the funding signal is more aligned; when they diverge, price and rates need extra attention.
 
-USDT+USDC+ETF inflow is hidden by default. It adds USDT+USDC supply and cumulative spot BTC ETF net inflow, converted to billions of dollars, to show whether on-chain dollar balances and ETF access are expanding together. When this line is enabled, green and red bars around the zero axis show daily net inflow or outflow.
+USDT+USDC+ETF inflow is visible by default. It adds USDT+USDC supply and cumulative spot BTC ETF net inflow, converted to billions of dollars, to show whether on-chain dollar balances and ETF access are expanding together. When this line is enabled, green and red bars around the zero axis show daily net inflow or outflow.
 
 Treasury QE is hidden by default. It takes the 12-month change in US marketable T-Bill outstanding, then normalizes it with a z-score over the chart window. It is a reconstructed T-Bill issuance impulse line; there is no official Treasury or Fed series with this exact name.
 
@@ -1215,7 +1215,7 @@ const homeLink=document.getElementById("homeLink");
 const langSwitch=document.getElementById("langSwitch");
 const isEmbed=document.documentElement.classList.contains("is-embed");
 const events=P.events.map(e=>({...e,t:new Date(e.date).getTime()}));
-const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleDownAlpha:.42,usdt:"#ED7D31",usdc:"#FFC000",stable:"#70AD47",stableEtf:"#0f766e",stableEtfFlowUp:"rgba(22,163,74,.34)",stableEtfFlowDown:"rgba(220,38,38,.30)",us1y:"rgba(248,113,113,.62)",treasuryQE:"rgba(147,51,234,.74)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
+const colors={btc:"#1f77b4",eth:"rgba(165,165,165,.70)",sol:"#0f9f6e",bnb:"#8b5cf6",btcEthRatio:"#334155",candleUpFill:"rgba(255,255,255,.76)",candleDownAlpha:.42,usdt:"#0f766e",usdc:"#FFC000",stable:"#70AD47",stableEtf:"#ED7D31",stableEtfFlowUp:"rgba(22,163,74,.34)",stableEtfFlowDown:"rgba(220,38,38,.30)",us1y:"rgba(248,113,113,.62)",treasuryQE:"rgba(147,51,234,.74)",btcEtfFlow:"rgba(220,38,38,.74)",event:"#2563eb",eventText:"rgba(23,32,42,.65)",eventTextActive:"#17202a",eventBorder:"rgba(147,197,253,.42)",eventFill:"rgba(255,255,255,.30)",eventActiveFill:"rgba(255,255,255,.70)",grid:"#dfe6ed",text:"#17202a",muted:"#526071"};
 const params=new URLSearchParams(location.search);
 let lang=params.get("lang")==="en"?"en":"zh";
 const text={
@@ -1255,7 +1255,7 @@ const series=[
   {key:"us1y",color:colors.us1y,scale:"rate",width:1.1},
   {key:"treasuryQE",color:colors.treasuryQE,scale:"score",width:1.08}
 ];
-let box={},zoom=null,drag=null,pan=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],scaleBoxes=[],modeBoxes=[],period="day",priceMode="line",valueScale="pct",hoverPeriod=null,hoverScale=null,hoverMode=null,hidden={sol:true,bnb:true,btcEthRatio:true,usdt:true,usdc:true,stableEtf:true,us1y:true,treasuryQE:true};
+let box={},zoom=null,drag=null,pan=null,legendBoxes=[],eventBoxes=[],periodBoxes=[],scaleBoxes=[],modeBoxes=[],period="day",priceMode="line",valueScale="pct",hoverPeriod=null,hoverScale=null,hoverMode=null,hidden={sol:true,bnb:true,btcEthRatio:true,usdt:true,usdc:true,stable:true,stableEtf:false,us1y:true,treasuryQE:true};
 const DAY=86400000;
 function cloneRow(r){return {...r}}
 function finite(v){return v!=null&&Number.isFinite(v)}
@@ -1432,7 +1432,7 @@ function drawAxes(){
     ctx.restore();
   }
   niceTicks(box.ratioMin,box.ratioMax,6).forEach(v=>{const y=yRatio(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.btc;ctx.textAlign="right";ctx.fillText(axisPct(v),box.x0-9,y+4)});
-  [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.usdt;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
+  [-50,0,50,100,150,200,250,300].forEach(v=>{if(v<box.supplyMin||v>box.supplyMax)return;const y=ySupply(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.stableEtf;ctx.textAlign="left";ctx.fillText("$"+v+"B",box.x1+9,y+4)});
   if(!hidden.us1y)[box.rateMin,(box.rateMin+box.rateMax)/2,box.rateMax].forEach(v=>{const y=yRate(v);if(y<box.y0||y>box.y1)return;ctx.fillStyle=colors.us1y;ctx.textAlign="left";ctx.fillText(ratePct(v),box.x1+68,y+4)});
   if(!hidden.treasuryQE){
     const scoreX=box.x1+(hidden.us1y?68:108);
@@ -1556,7 +1556,7 @@ function draw(active,eventDate=null){
   ctx.save();ctx.beginPath();ctx.rect(x0,y0,x1-x0,y1-y0);ctx.clip();drawStableEtfFlowBars();series.forEach(drawPath);if(priceMode==="candle"){["btc","eth","sol","bnb"].forEach(drawCandles)}ctx.restore();
   if(isEmbed){eventBoxes=[]}else{drawEvents(eventDate)}
   ctx.fillStyle=colors.btc;ctx.textAlign="center";ctx.save();ctx.translate(x0-52,(y0+y1)/2);ctx.rotate(-Math.PI/2);ctx.fillText(valueScale==="log"?tr("axisLog"):tr("axisPct"),0,0);ctx.restore();
-  ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.usdt;ctx.fillText(tr("axisSupply"),0,0);ctx.restore();
+  ctx.save();ctx.translate(x1+52,(y0+y1)/2);ctx.rotate(Math.PI/2);ctx.fillStyle=colors.stableEtf;ctx.fillText(tr("axisSupply"),0,0);ctx.restore();
   if(active!=null){const r=rows[active],x=xScale(r.t);ctx.setLineDash([5,5]);ctx.strokeStyle="rgba(82,96,113,.62)";ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();ctx.setLineDash([]);series.forEach(item=>{if(priceMode==="candle"&&item.kind==="candle")return;const v=plotValue(item,r);if(hidden[item.key]||v==null)return;ctx.fillStyle="#fff";ctx.strokeStyle=item.color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,yFor(item,v),3.3,0,Math.PI*2);ctx.fill();ctx.stroke()})}
 }
 function clampX(x){return Math.max(box.x0,Math.min(box.x1,x))}
