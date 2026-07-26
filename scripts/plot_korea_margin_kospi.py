@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import random
 import re
 import sys
 import time
@@ -27,18 +28,52 @@ YAHOO_CHART_BASE = "https://query1.finance.yahoo.com/v8/finance/chart"
 KOSPI_YAHOO_SYMBOL = "^KS11"
 USDKRW_YAHOO_SYMBOL = "KRW=X"
 KOREA_10Y_TRADINGVIEW_SYMBOL = "TVC:KR10Y"
+JSON_RETRY_DELAYS = (1.5, 3.0, 6.0, 12.0)
+KOFIA_CHUNK_DAYS = 180
 OUT_DIR = Path(__file__).resolve().parent
 
 
 def fetch_json(req: Request) -> dict:
     last_error: Exception | None = None
-    for _ in range(3):
+    attempts = len(JSON_RETRY_DELAYS) + 1
+    for attempt in range(attempts):
+        status: int | str = "unknown"
+        content_type = "unknown"
+        received_bytes: int | str = "unknown"
         try:
             with urlopen(req, timeout=45) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except (IncompleteRead, RemoteDisconnected, TimeoutError, URLError, OSError, json.JSONDecodeError) as exc:
+                status = getattr(resp, "status", "unknown")
+                content_type = resp.headers.get("Content-Type", "unknown")
+                raw = resp.read()
+                received_bytes = len(raw)
+            payload = json.loads(raw.decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError(f"JSON 顶层类型异常：{type(payload).__name__}")
+            return payload
+        except (
+            IncompleteRead,
+            RemoteDisconnected,
+            TimeoutError,
+            URLError,
+            OSError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            ValueError,
+        ) as exc:
             last_error = exc
-            time.sleep(0.8)
+            detail = (
+                f"status={status}, content_type={content_type}, bytes={received_bytes}, "
+                f"error={type(exc).__name__}: {exc}"
+            )
+            if isinstance(exc, json.JSONDecodeError):
+                detail += f", json_position={exc.pos}"
+            print(
+                f"[warn] JSON 请求第 {attempt + 1}/{attempts} 次失败：{req.full_url}；{detail}",
+                file=sys.stderr,
+            )
+            if attempt < len(JSON_RETRY_DELAYS):
+                delay = JSON_RETRY_DELAYS[attempt] + random.uniform(0.0, 0.8)
+                time.sleep(delay)
     raise RuntimeError(f"请求接口失败：{req.full_url}") from last_error
 
 
@@ -166,23 +201,22 @@ def fetch_foreign_net_buy() -> pd.DataFrame:
     return df.drop_duplicates(subset=["date"]).sort_values("date").reset_index(drop=True)
 
 
-def fetch_credit_financing_balance() -> pd.DataFrame:
-    end_date = date.today().strftime("%Y%m%d")
+def build_kofia_request(start_day: date, end_day: date) -> Request:
     body = json.dumps(
         {
             "dmSearch": {
                 "tmpV40": "1000000",
                 "tmpV41": "1",
                 "tmpV1": "D",
-                "tmpV45": START_DATE.replace("-", ""),
-                "tmpV46": end_date,
+                "tmpV45": start_day.strftime("%Y%m%d"),
+                "tmpV46": end_day.strftime("%Y%m%d"),
                 "OBJ_NM": "STATSCU0100000070BO",
             }
         },
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
-    req = Request(
+    return Request(
         KOFIA_DATA,
         data=body,
         method="POST",
@@ -201,10 +235,46 @@ def fetch_credit_financing_balance() -> pd.DataFrame:
             ),
         },
     )
-    payload = fetch_json(req)
+
+
+def fetch_kofia_rows(start_day: date, end_day: date) -> list[dict]:
+    payload = fetch_json(build_kofia_request(start_day, end_day))
     rows = payload.get("ds1") or []
-    if not rows:
-        raise RuntimeError("KOFIA FreeSIS 信用交易融资余额接口没有返回数据")
+    if not isinstance(rows, list) or not rows:
+        raise RuntimeError(
+            "KOFIA FreeSIS 信用交易融资余额接口没有返回数据："
+            f"{start_day:%Y-%m-%d} 至 {end_day:%Y-%m-%d}"
+        )
+    return rows
+
+
+def kofia_date_ranges(start_day: date, end_day: date) -> list[tuple[date, date]]:
+    ranges: list[tuple[date, date]] = []
+    cursor = start_day
+    while cursor <= end_day:
+        chunk_end = min(cursor + timedelta(days=KOFIA_CHUNK_DAYS - 1), end_day)
+        ranges.append((cursor, chunk_end))
+        cursor = chunk_end + timedelta(days=1)
+    return ranges
+
+
+def fetch_credit_financing_balance() -> pd.DataFrame:
+    start_day = datetime.strptime(START_DATE, "%Y-%m-%d").date()
+    end_day = date.today()
+    try:
+        rows = fetch_kofia_rows(start_day, end_day)
+    except RuntimeError as exc:
+        ranges = kofia_date_ranges(start_day, end_day)
+        print(
+            "[warn] KOFIA 全历史请求失败，改用 "
+            f"{KOFIA_CHUNK_DAYS} 天分段获取（共 {len(ranges)} 段）：{exc}",
+            file=sys.stderr,
+        )
+        rows = []
+        for index, (chunk_start, chunk_end) in enumerate(ranges):
+            rows.extend(fetch_kofia_rows(chunk_start, chunk_end))
+            if index < len(ranges) - 1:
+                time.sleep(0.15)
 
     df = pd.DataFrame(rows)
     df["date"] = pd.to_datetime(df["TMPV1"], format="%Y%m%d").dt.date
