@@ -44,6 +44,21 @@ charts:
     module: plot_btc_intraday_flow
     output_html: charts/intraday-analysis/btc-intraday-flow.html
     output_csv: data/intraday-analysis/btc-intraday-flow.csv
+  - id: k200-market-intuition-selector
+    category: intraday-analysis
+    title: K200 行情直觉选择器
+    description: 浏览默认 K200 15 秒 K 线，框选行情后计算做空收益与最大不利反弹；自定义 CSV/TSV 仅在本机浏览器内处理，不上传、不保存。
+    builder: market_intuition_selector
+    source_html: static/intraday-analysis/market-intuition-selector.html
+    source_csv: static/intraday-analysis/k200-market-intuition-selector.csv
+    source_assets: static/intraday-analysis/market-intuition-assets
+    output_html: charts/intraday-analysis/k200-market-intuition-selector.html
+    output_csv: data/intraday-analysis/k200-market-intuition-selector.csv
+    metrics:
+      - label: 默认行情
+        value: K200 干净 15 秒序列
+      - label: 本机隐私
+        value: 上传文件不上传、不保存
   - id: korea-margin-kospi
     category: a-share-margin
     title: KOSPI & Cash flow
