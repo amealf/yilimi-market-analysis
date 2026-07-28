@@ -44,7 +44,6 @@ charts:
     module: plot_btc_intraday_flow
     output_html: charts/intraday-analysis/btc-intraday-flow.html
     output_csv: data/intraday-analysis/btc-intraday-flow.csv
-  - id: korea-margin-kospi
   - id: k200-market-intuition-selector
     category: intraday-analysis
     title: K200 选定行情／市场直觉选择器
@@ -59,6 +58,7 @@ charts:
         value: K200 15 秒 · 199,200 bars
       - label: 隐私
         value: 本机处理，不上传、不保存
+  - id: korea-margin-kospi
     category: a-share-margin
     title: KOSPI & Cash flow
     description: KOSPI、韩国信用交易融资余额、外国人净买入、韩国10年国债收益率和USD/KRW的对比图。
