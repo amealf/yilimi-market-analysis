@@ -331,6 +331,21 @@ def build_static_html(chart: dict) -> dict:
     }
 
 
+def build_market_intuition_selector(chart: dict) -> dict:
+    """Publish the selector with its local chart runtime.
+
+    Visitor CSV/TSV files remain browser-memory data.  The asset copy supplies
+    Plotly from the same published site, avoiding a third-party runtime request.
+    """
+    result = build_static_html(chart)
+    source_assets = ROOT / chart["source_assets"]
+    target_assets = site_path(chart["output_html"]).parent / "assets"
+    if not source_assets.is_dir():
+        raise SystemExit(f"市场直觉工具资源目录不存在：{source_assets}")
+    shutil.copytree(source_assets, target_assets, dirs_exist_ok=True)
+    return result
+
+
 def build_global_30y_bond_intraday(chart: dict) -> dict:
     sys.path.insert(0, str(ROOT))
     module = importlib.import_module(chart["module"])
@@ -371,6 +386,7 @@ BUILDERS = {
     "taiwan_margin_taiex": build_taiwan_margin_taiex,
     "oil_price_events": build_oil_price_events,
     "static_html": build_static_html,
+    "market_intuition_selector": build_market_intuition_selector,
     "global_30y_bond_intraday": build_global_30y_bond_intraday,
     "global_30y_bond_daily": build_global_30y_bond_daily,
 }

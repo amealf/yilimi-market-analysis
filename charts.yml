@@ -45,20 +45,6 @@ charts:
     output_html: charts/intraday-analysis/btc-intraday-flow.html
     output_csv: data/intraday-analysis/btc-intraday-flow.csv
   - id: korea-margin-kospi
-  - id: k200-market-intuition-selector
-    category: intraday-analysis
-    title: K200 选定行情／市场直觉选择器
-    description: 默认加载 199,200 根 K200 15 秒 OHLC bar；可在本机浏览器上传 CSV/TSV、框选行情并导出精确区间指标，不上传也不保存用户数据。
-    builder: static_html
-    source_html: static/intraday-analysis/k200-market-intuition-selector.html
-    source_csv: static/intraday-analysis/k200-market-intuition-selector.csv
-    output_html: charts/intraday-analysis/k200-market-intuition-selector.html
-    output_csv: data/intraday-analysis/k200-market-intuition-selector.csv
-    metrics:
-      - label: 默认数据
-        value: K200 15 秒 · 199,200 bars
-      - label: 隐私
-        value: 本机处理，不上传、不保存
     category: a-share-margin
     title: KOSPI & Cash flow
     description: KOSPI、韩国信用交易融资余额、外国人净买入、韩国10年国债收益率和USD/KRW的对比图。
@@ -66,6 +52,21 @@ charts:
     module: plot_korea_margin_kospi
     output_html: charts/a-share-margin/korea-margin-kospi.html
     output_csv: data/a-share-margin/korea-margin-kospi.csv
+  - id: k200-market-intuition-selector
+    category: intraday-analysis
+    title: K200 选定行情／市场直觉选择器
+    description: 默认加载 199,200 根 K200 15 秒 OHLC bar；可在本机浏览器上传 CSV/TSV、框选行情并导出精确区间指标，不上传也不保存用户数据。
+    builder: market_intuition_selector
+    source_html: static/intraday-analysis/k200-market-intuition-selector.html
+    source_csv: static/intraday-analysis/k200-market-intuition-selector.csv
+    source_assets: static/intraday-analysis/market-intuition-assets
+    output_html: charts/intraday-analysis/k200-market-intuition-selector.html
+    output_csv: data/intraday-analysis/k200-market-intuition-selector.csv
+    metrics:
+      - label: 默认数据
+        value: K200 15 秒 · 199,200 bars
+      - label: 隐私
+        value: 本机处理，不上传、不保存
   - id: taiwan-margin-taiex
     category: a-share-margin
     title: TAIEX & Cash flow

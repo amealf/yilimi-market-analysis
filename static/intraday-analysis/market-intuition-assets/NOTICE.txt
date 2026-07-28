@@ -1,0 +1,8 @@
+This page bundles Plotly.js v3.7.0.
+
+Copyright 2012-2026 Plotly, Inc.
+Licensed under the MIT License.
+
+The distributed plotly.min.js file retains its upstream license header. It is
+kept locally so loading or uploading a visitor's CSV/TSV does not require a
+third-party runtime request.
