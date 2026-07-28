@@ -22,9 +22,10 @@ const server = http.createServer(async (request, response) => {
     const relative = decodeURIComponent(new URL(request.url, "http://local").pathname).replace(/^\/+/, "") || "index.html";
     const file = normalize(join(root, relative));
     if (!file.startsWith(normalize(root))) throw new Error("outside site");
+    const body = await readFile(file);
     response.writeHead(200, { "content-type": types[extname(file)] || "application/octet-stream" });
-    response.end(await readFile(file));
-  } catch { response.writeHead(404).end(); }
+    response.end(body);
+  } catch { if (!response.headersSent) response.writeHead(404); response.end(); }
 });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 const port = server.address().port;

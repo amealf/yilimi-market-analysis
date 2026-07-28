@@ -332,11 +332,11 @@ def build_static_html(chart: dict) -> dict:
 
 
 def build_market_intuition_selector(chart: dict) -> dict:
-    """Publish the self-contained selector and its local Plotly runtime.
+    """Publish the selector with a same-origin Plotly runtime.
 
-    The page fetches only the published default K200 CSV.  Visitor-provided
-    files stay in browser memory, so the asset copy here must not introduce a
-    server endpoint or a storage dependency.
+    The page fetches only the published default K200 CSV. Visitor CSV/TSV
+    files remain browser-memory data, and the asset copy avoids a third-party
+    runtime request or server persistence interface.
     """
     result = build_static_html(chart)
     source_assets = ROOT / chart["source_assets"]
