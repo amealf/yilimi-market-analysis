@@ -21,6 +21,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      pages_artifact_id: ${{ steps.pages_artifact.outputs.artifact_id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -59,6 +61,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload GitHub Pages artifact
+        id: pages_artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: site
@@ -67,6 +70,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      actions: write
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -74,3 +81,22 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Delete deployed Pages artifact
+        uses: actions/github-script@v9
+        env:
+          PAGES_ARTIFACT_ID: ${{ needs.build.outputs.pages_artifact_id }}
+        with:
+          script: |
+            const artifactId = Number(process.env.PAGES_ARTIFACT_ID);
+            if (!Number.isSafeInteger(artifactId) || artifactId <= 0) {
+              core.setFailed(`Invalid Pages artifact ID: ${process.env.PAGES_ARTIFACT_ID}`);
+              return;
+            }
+
+            await github.rest.actions.deleteArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: artifactId,
+            });
+            core.info(`Deleted deployed Pages artifact ${artifactId}.`);
