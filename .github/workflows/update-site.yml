@@ -3,8 +3,8 @@ name: Update site
 on:
   workflow_dispatch:
   schedule:
-    # Beijing time: every 2 hours at minute 17.
-    - cron: "17 */2 * * *"
+    # Beijing time: every 4 hours at minute 17.
+    - cron: "17 */4 * * *"
   push:
     branches:
       - main
